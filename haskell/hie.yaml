@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "haskell:lib:type-safari-hls"
+
+    - path: "src/Wasm/Main.hs"
+      component: "haskell:lib:type-safari-hls"

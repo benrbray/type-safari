@@ -1,0 +1,127 @@
+cabal-version:       3.8
+name:                haskell
+version:             0.1.0.0
+author:              Benjamin Bray
+maintainer:          benrbray@gmail.com
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+common common
+  default-language: GHC2021
+  ghc-options:
+    -Wall
+    -Werror
+    -Weverything
+    -Wno-all-missed-specialisations
+    -Wno-missed-specialisations
+    -Wno-missing-export-lists
+    -Wno-missing-exported-signatures
+    -Wno-missing-import-lists
+    -Wno-missing-kind-signatures
+    -Wno-missing-local-signatures
+    -Wno-missing-safe-haskell-mode
+    -Wno-monomorphism-restriction
+    -Wno-prepositive-qualified-module
+    -Wno-safe
+    -Wno-unsafe
+    -- -Wno-unused-packages
+    -- -Wno-unused-binds
+    -- -Wno-unused-local-binds
+    -- -Wno-unused-imports
+    -fhide-source-paths
+    -freverse-errors
+  default-extensions:
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    EmptyDataDeriving
+    ExplicitForAll
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PatternSynonyms
+    PolyKinds
+    QuantifiedConstraints
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+  build-depends:
+    base,
+    bytestring,
+    text,
+    aeson,
+    megaparsec,
+    protolude,
+    containers,
+    mtl,
+    transformers
+
+common type-safari
+  other-modules:
+    TypeSafari.Api.Parse
+    TypeSafari.FFI.StringWithLen
+    TypeSafari.FFI.Util
+    TypeSafari.HindleyMilner.Infer
+    TypeSafari.HindleyMilner.Parse
+    TypeSafari.HindleyMilner.Syntax
+
+-- haskell-language-server has trouble with the
+-- c-sources, so we include a separate stanza
+-- to be referenced by hie.yaml during development
+library type-safari-hls
+  import: common, type-safari
+  hs-source-dirs: src
+  ghc-options:
+    -Wunused-packages
+
+-- used when actually building the wasm file
+executable type-safari-wasm
+  import: common, type-safari
+  hs-source-dirs: src
+  main-is: TypeSafari/Wasm/Main.hs
+  c-sources: src/cbits/init.c
+  ghc-options:
+    -Wall
+    -Wunused-packages
+    -no-hs-main
+    -optl-mexec-model=reactor
+    "-optl-Wl\
+    -- memory management
+    \,--export=malloc\
+    \,--export=free\
+    -- StringWithLen data structure
+    \,--export=getString\
+    \,--export=getStringLen\
+    \,--export=freeStringWithLen\
+    -- main functionality
+    \,--export=runFibonacci\
+    \,--export=runToUpper\
+    \,--export=runParse\
+    \"
