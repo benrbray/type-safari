@@ -64,7 +64,7 @@ nameP = nameP0 >>= check
     check s =
       if s `elem` reserved
       then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
-      else return s
+      else return (Stx.Name s)
 
 variableP :: Parser Stx.Expr
 variableP = Stx.Var <$> nameP

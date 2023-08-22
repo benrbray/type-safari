@@ -10,40 +10,7 @@ import Data.Set qualified as Set
 import GHC.Base (error)
 import Control.Monad.Writer
 import Control.Monad.Trans.RWS (RWST, evalRWST)
-
----- syntax --------------------------------------------------------------------
-
-data Name
-  = Name Text
-  | Fresh Int
-  deriving stock (Show, Eq, Ord)
-
-data Expr
-  = Var Name            -- variable
-  | App Expr Expr       -- application
-  | Lam Name Expr       -- lambda
-  | Let Name Expr Expr  -- let x = e1 in e2
-  | Lit Lit             -- literal
-  | If Expr Expr Expr   -- if then else
-  | Fix Expr            -- fixpoint
-  | Op Binop Expr Expr  -- binary operator
-  deriving stock (Show, Eq, Ord)
-
-data Lit
-  = LInt Integer
-  | LBool Bool
-  deriving stock (Show, Eq, Ord)
-
-data Binop
-  = Add | Sub | Mul | Eql
-  deriving stock (Show, Eq, Ord)
-
-type Decl
-  = (Text, Expr)
-
-data Program
-  = Program [Decl] Expr
-  deriving stock (Show, Eq, Ord)
+import TypeSafari.HindleyMilner.Syntax
 
 ---- types ---------------------------------------------------------------------
 

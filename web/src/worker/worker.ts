@@ -56,7 +56,7 @@ const withBytesPtr = (
 
 
 async function main() {
-	const wasmPath = "/public/main.wasm";
+	const wasmPath = "/type-safari.wasm";
 	const wasm = await initWebAssembly(fetch(wasmPath));
 	const haskell = wasm.instance.exports as Haskell;
 

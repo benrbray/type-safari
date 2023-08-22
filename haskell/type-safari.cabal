@@ -86,11 +86,13 @@ common common
 common type-safari
   other-modules:
     TypeSafari.Api.Parse
+    TypeSafari.Core
     TypeSafari.FFI.StringWithLen
     TypeSafari.FFI.Util
     TypeSafari.HindleyMilner.Infer
     TypeSafari.HindleyMilner.Parse
     TypeSafari.HindleyMilner.Syntax
+    TypeSafari.Pretty
 
 -- haskell-language-server has trouble with the
 -- c-sources, so we include a separate stanza
