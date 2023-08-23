@@ -1,41 +1,67 @@
-type Tag<T extends string> = { tag: T };
+import { assert, _ } from "spec.ts";
+
+export type Tag<T extends string> = { tag: T };
+
+export type KeyOf<T> = T extends T ? keyof T : never;
 
 /* ---- request ----------------------------------------- */
 
-type WorkerRequest = AddOne | ToUpper | Parse | Infer;
+export interface WorkerRequestData {
+	"toUpper" : {
+		value : string
+	},
+	"runParse" : {
+		inputText: string
+	},
+	"runInfer" : {
+		inputText: string
+	}
+}
 
-type AddOne  = Tag<"addOne">  & { value: number };
-type ToUpper = Tag<"toUpper"> & { value: string };
-type Parse = Tag<"runParse"> & { data: { inputText: string } };
-type Infer = Tag<"runInfer"> & { data: { inputText: string } };
+export type OpName = keyof WorkerRequestData
+
+// ternary operator is necessary as a hack here for distributive types, so that
+//   if `OpName = A | B`
+//   then `WorkerRequest<OpName> = WorkerRequest<A> | WorkerRequest<B>`
+export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
+	tag: Op,
+	data: WorkerRequestData[Op]
+} : never;
+
 
 /* ---- response ---------------------------------------- */
 
-type WorkerResponse
+export interface WorkerResultData {
+	"toUpper" : {
+		result : string
+	},
+	"runParse" : {
+		outputExpr?: any|undefined
+		outputError?: string|undefined
+	},
+	"runInfer" : {
+		outputExpr?: any|undefined
+		outputType?: any|undefined
+		outputError?: string|undefined
+	}
+}
+
+export interface WorkerResult<Op extends OpName> {
+	tag: "workerResult",
+	data: WorkerResultData[Op]
+}
+
+/** Assert that there is a result type for every operation. */
+assert(_ as keyof WorkerResultData, _ as OpName);
+
+export type WorkerResponse<Op extends OpName>
 	= WorkerReady
 	| WorkerSuccess
 	| WorkerFailure
 	| WorkerUnknownRequest
-	| WorkerToUpperResult
-	| WorkerParseResult
-	| WorkerInferResult;
+	| WorkerResult<Op>;
 
-type WorkerReady = Tag<"workerReady">;
-type WorkerSuccess = Tag<"workerSuccess">;
-type WorkerFailure = Tag<"workerFailure">;
-type WorkerUnknownRequest = Tag<"workerUnknownRequest">;
-
-type WorkerToUpperResult = Tag<"workerToUpperResult"> & {
-	result: string
-};
-
-type WorkerParseResult = Tag<"workerParseResult"> & {
-	outputExpr?: any|undefined
-	outputError?: string|undefined
-};
-
-type WorkerInferResult = Tag<"workerInferResult"> & {
-	outputExpr?: any|undefined
-	outputType?: any|undefined
-	outputError?: string|undefined
-};
+export type WorkerReady = Tag<"workerReady">;
+export type WorkerSuccess = Tag<"workerSuccess">;
+export type WorkerFailure = Tag<"workerFailure">;
+export type WorkerUnknownRequest = Tag<"workerUnknownRequest">;

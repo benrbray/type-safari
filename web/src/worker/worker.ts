@@ -3,20 +3,9 @@
 
 import { Fd, OpenFile, WASI, File } from '@bjorn3/browser_wasi_shim';
 import "./workerApi";
-
-type Ptr = number;
-
-type WasmApi = {
-	malloc(n: number): Ptr; // ???
-	free(ptr: Ptr): void; // ???
-	getString(ptr: Ptr): Ptr;
-	getStringLen(ptr: Ptr): number;
-	freeStringWithLen(ptr: Ptr): void; //
-	runFibonacci(n: number): number;
-	runToUpper(ptr: Ptr, len: number): Ptr;
-	runParse(ptr: Ptr, len: number): Ptr;
-	runInfer(ptr: Ptr, len: number): Ptr;
-}
+import { WasmApi, Ptr, JsonOp } from './WasmApi';
+import { WorkerRequest, WorkerResponse, OpName, WorkerRequestData } from './workerApi';
+import { PickByType } from '../util/types';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,24 +53,14 @@ async function main() {
 	console.log(haskell);
 
 	onmessage = (evt) => {
-		const request = evt.data as WorkerRequest;
+		const req = evt.data as WorkerRequest<OpName>;
 
-		console.log("received request from main", request);
+		console.log("received request from main", req);
 
-		if(request.tag === "addOne") {
-			const result = haskell.runFibonacci(request.value);
-			console.log(`result = ${result}`);
-
-			respondSuccess();
-		} else if(request.tag === "toUpper") {
-			runToUpper(haskell, request);
-		} else if(request.tag === "runParse") {
-			runParse(haskell, request);
-		} else if(request.tag === "runInfer") {
-			runInfer(haskell, request);
-		} else {
-			respondUnknown();
-		}
+		     if(req.tag === "toUpper")  { runToUpper(haskell, req.data);            }
+		else if(req.tag === "runParse") { runJsonOp(haskell, "runParse", req.data); }
+		else if(req.tag === "runInfer") { runJsonOp(haskell, "runInfer", req.data); }
+		else                            { respondUnknown();                         }
 	};
 
 	// send initial message indicating worker is ready
@@ -103,7 +82,7 @@ function decodeStringWithLen(haskell: Haskell, ptr: Ptr): string {
 
 function runToUpper(
 	haskell: Haskell,
-	request: ToUpper
+	request: WorkerRequestData["toUpper"]
 ) {
 	const inputBytes = encoder.encode(request.value);
 	let result: null | string = null;
@@ -116,7 +95,7 @@ function runToUpper(
 	});
 
 	if(result !== null) {
-		respond({ tag: "workerToUpperResult", result });
+		respond({ tag: "workerResult", data: { result: result } });
 	} else {
 		respondFailure();
 	}
@@ -124,58 +103,40 @@ function runToUpper(
 	return;
 }
 
-function runParse(
+/**
+ * Note: Since the `Ptr` type is just an alias for `number`,
+ * `OpName` may include some non-JSON operations.  Be careful!
+ */
+function runJsonOp<JsonIn, OpName extends keyof PickByType<WasmApi, JsonOp>>(
 	haskell: Haskell,
-	request: Parse
-) {
-	const inputBytes = encoder.encode(JSON.stringify(request.data));
+	jsonOp: OpName,
+	inputJson: JsonIn
+): void {
+	// serialize input json
+	const inputBytes = encoder.encode(JSON.stringify(inputJson));
+
+	// call wasm webworker
 	let resultJson: string|null = null;
-
 	withBytesPtr(haskell, inputBytes, (inputPtr, inputLen) => {
-		const resultPtr = haskell.runParse(inputPtr, inputLen);
-		const resultStr = decodeStringWithLen(haskell, resultPtr);
-		console.log(`result: ${resultStr}`);
-		resultJson = resultStr;
-	});
-
-
-	if(resultJson !== null) {
-		const { outputExpr, outputError } = JSON.parse(resultJson) as WorkerParseResult;
-		respond({ tag: "workerParseResult", outputExpr, outputError });
-	} else {
-		respondFailure();
-	}
-
-	return;
-}
-
-function runInfer(
-	haskell: Haskell,
-	request: Infer
-) {
-	const inputBytes = encoder.encode(JSON.stringify(request.data));
-	let resultJson: string|null = null;
-
-	withBytesPtr(haskell, inputBytes, (inputPtr, inputLen) => {
-		const resultPtr = haskell.runInfer(inputPtr, inputLen);
+		const runOp = (haskell as WasmApi)[jsonOp];
+		const resultPtr = runOp(inputPtr, inputLen);
 		const resultStr = decodeStringWithLen(haskell, resultPtr);
 		console.log(`result: ${resultStr}`);
 		resultJson = resultStr;
 	});
 
 	if(resultJson !== null) {
-		const result = JSON.parse(resultJson) as Omit<WorkerInferResult, "tag">;
-		respond({ tag: "workerInferResult", ...result });
+		/* TODO (Ben @ 2023/08/23) eliminate this `any`? */
+		const result: any = JSON.parse(resultJson);
+		respond({ tag : "workerResult", data: result });
 	} else {
 		respondFailure();
 	}
-
-	return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function respond(response: WorkerResponse): void {
+function respond(response: WorkerResponse<OpName>): void {
 	console.log("posting response", response);
 	postMessage(response);
 }

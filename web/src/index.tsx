@@ -4,11 +4,12 @@ import WasmWorker from "./worker/worker?url"
 
 import './index.css'
 import { createSignal } from 'solid-js';
+import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
 ////////////////////////////////////////////////////////////////////////////////
 
 let _worker: Worker;
-let _currentRequest: Promise<WorkerResponse>;
+let _currentRequest: Promise<WorkerResponse<OpName>>;
 
 /**
  * Communication with the web worker is based on `fourmolu-wasm` by Brandon Chinn.
@@ -20,7 +21,7 @@ function initWorker() {
   _currentRequest = new Promise((resolve) => {
     // wait for initial message indicating worker is ready
     _worker.onmessage = (evt) => {
-      const response = evt.data as WorkerResponse;
+      const response = evt.data as WorkerResponse<never>;
       if(response.tag !== "workerReady") { return; }
 
       console.log("worker is ready");
@@ -35,8 +36,10 @@ function initWorker() {
   * All calls to the web worker should be made through `callWorker`,
   * which chains requests as promises to ensure synchronous access.
   */
-function callWorker(message: WorkerRequest): Promise<WorkerResponse> {
-  const promise: Promise<WorkerResponse> =
+function callWorker<Op extends keyof WorkerRequestData>(
+  message: WorkerRequest<Op>
+): Promise<WorkerResponse<Op>> {
+  const promise: Promise<WorkerResponse<Op>> =
     _currentRequest.then(() =>
       new Promise((resolve) => {
         console.log("[main] sending request to worker", message);
@@ -49,45 +52,37 @@ function callWorker(message: WorkerRequest): Promise<WorkerResponse> {
   return promise;
 }
 
+function callWorkerApi<Op extends OpName>(
+  op: Op,
+  data: WorkerRequestData[Op]
+): Promise<WorkerResult<Op>> {
+  return new Promise<WorkerResult<Op>>(async (resolve, reject) => {
+    // TODO (Ben @ 2023/08/23) eliminate this cast
+    // https://stackoverflow.com/q/76962844/1444650
+    const req = { tag: op, data } as WorkerRequest<Op>;
+
+    const result = await callWorker<Op>(req);
+    
+    if(result.tag === "workerResult") {
+      resolve(result);
+    } else {
+      console.error(`expected workerResult, received ${result.tag}`);
+      reject();
+    }
+  });
+}
+
 const workerApi = {
-  async toUpper(s: string): Promise<string> {
-    return new Promise(async (resolve, reject) => {
-      const result = await callWorker({ tag: "toUpper", value: s });
-
-      if(result.tag === "workerToUpperResult") {
-        resolve(result.result);
-      } else {
-        reject();
-      }
-    });
+  async toUpper(value: string) {
+    return callWorkerApi("toUpper", { value });
   },
 
-  async runParse(s: string): Promise<WorkerParseResult> {
-    return new Promise(async (resolve, reject) => {
-      const result = await callWorker({ tag: "runParse", data: { inputText: s } });
-
-      if(result.tag === "workerParseResult") {
-        resolve(result.outputExpr || result.outputError || "missing data");
-      } else {
-        reject();
-      }
-    });
+  async runParse(inputText: string) {
+    return callWorkerApi("runParse", { inputText });
   },
 
-  async runInfer(s: string): Promise<WorkerInferResult> {
-    return new Promise(async (resolve, reject) => {
-      const result
-        = await callWorker({
-            tag: "runInfer",
-            data: { inputText: s }
-        }) as WorkerInferResult;
-
-      if(result.tag === "workerInferResult") {
-        resolve(result);
-      } else {
-        reject();
-      }
-    });
+  async runInfer(inputText: string) {
+    return callWorkerApi("runInfer", { inputText });
   }
 }
 
@@ -105,8 +100,11 @@ const App = function () {
 
     console.log("[main]", result);
 
-    let expr = result.outputExpr ? JSON.stringify(result.outputExpr, undefined, 2) : result.outputError;
-    let tp = result.outputType || result.outputError;
+    let expr =
+      result.data.outputExpr ?
+      JSON.stringify(result.data.outputExpr, undefined, 2) :
+      result.data.outputError;
+    let tp = result.data.outputType || result.data.outputError;
 
     setResultExpr(expr || "");
     setResultType(tp);
