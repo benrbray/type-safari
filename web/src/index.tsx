@@ -62,12 +62,28 @@ const workerApi = {
     });
   },
 
-  async runParse(s: string): Promise<string> {
+  async runParse(s: string): Promise<WorkerParseResult> {
     return new Promise(async (resolve, reject) => {
       const result = await callWorker({ tag: "runParse", data: { inputText: s } });
 
       if(result.tag === "workerParseResult") {
         resolve(result.outputExpr || result.outputError || "missing data");
+      } else {
+        reject();
+      }
+    });
+  },
+
+  async runInfer(s: string): Promise<WorkerInferResult> {
+    return new Promise(async (resolve, reject) => {
+      const result
+        = await callWorker({
+            tag: "runInfer",
+            data: { inputText: s }
+        }) as WorkerInferResult;
+
+      if(result.tag === "workerInferResult") {
+        resolve(result);
       } else {
         reject();
       }
@@ -81,11 +97,19 @@ const root = document.getElementById('root')
 
 const App = function () {
   const [userText, setUserText] = createSignal<string>("");
-  const [resultText, setResultText] = createSignal<string>("");
+  const [resultExpr, setResultExpr] = createSignal<string>("");
+  const [resultType, setResultType] = createSignal<string>("");
 
   const handleClick = async () => {
-    const result = await workerApi.runParse(userText());
-    setResultText(JSON.stringify(result, undefined, 2));
+    const result = await workerApi.runInfer(userText());
+
+    console.log("[main]", result);
+
+    let expr = result.outputExpr ? JSON.stringify(result.outputExpr, undefined, 2) : result.outputError;
+    let tp = result.outputType || result.outputError;
+
+    setResultExpr(expr || "");
+    setResultType(tp);
   }
 
   return (<div class="demo">
@@ -97,7 +121,8 @@ const App = function () {
       <button class="btn" onClick={handleClick}>Parse</button>
     </div>
     <div class="bottom">
-      <pre class="resultText"><code>{resultText()}</code></pre>
+      <pre class="resultExpr"><code>{resultExpr()}</code></pre>
+      <pre class="resultType"><code>{resultType()}</code></pre>
     </div>
   </div>);
 }

@@ -81,11 +81,14 @@ common common
     protolude,
     containers,
     mtl,
-    transformers
+    transformers,
+    extra,
+    parser-combinators
 
 common type-safari
   other-modules:
     TypeSafari.Api.Parse
+    TypeSafari.Api.Infer
     TypeSafari.Core
     TypeSafari.FFI.StringWithLen
     TypeSafari.FFI.Util
@@ -126,4 +129,5 @@ executable type-safari-wasm
     \,--export=runFibonacci\
     \,--export=runToUpper\
     \,--export=runParse\
+    \,--export=runInfer\
     \"

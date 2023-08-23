@@ -22,6 +22,7 @@ import Data.ByteString.Unsafe
 
 import TypeSafari.FFI.StringWithLen
 import TypeSafari.Api.Parse qualified as Parse
+import TypeSafari.Api.Infer qualified as Infer
 
 --------------------------------------------------------------------------------
 
@@ -65,7 +66,7 @@ runTextTransform trans inputPtr inputLen = do
 
 runJsonTransform :: (Aeson.FromJSON a, Aeson.ToJSON b)
   => (a -> IO b)  -- transform
-  -> (Text -> b)  -- display error
+  -> (Text -> b)  -- render an error message as valid output
   -> ForeignStringTransform
 runJsonTransform trans dispError inputPtr inputLen = do
 
@@ -100,6 +101,13 @@ runParse :: ForeignStringTransform
 runParse = runJsonTransform Parse.runParse Parse.dispError
 
 foreign export ccall runParse :: ForeignStringTransform
+
+--------------------------------------------------------------------------------
+
+runInfer :: ForeignStringTransform
+runInfer = runJsonTransform Infer.runInfer Infer.dispError
+
+foreign export ccall runInfer :: ForeignStringTransform
 
 --------------------------------------------------------------------------------
 

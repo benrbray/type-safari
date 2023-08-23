@@ -15,6 +15,7 @@ type WasmApi = {
 	runFibonacci(n: number): number;
 	runToUpper(ptr: Ptr, len: number): Ptr;
 	runParse(ptr: Ptr, len: number): Ptr;
+	runInfer(ptr: Ptr, len: number): Ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +77,8 @@ async function main() {
 			runToUpper(haskell, request);
 		} else if(request.tag === "runParse") {
 			runParse(haskell, request);
+		} else if(request.tag === "runInfer") {
+			runInfer(haskell, request);
 		} else {
 			respondUnknown();
 		}
@@ -139,6 +142,30 @@ function runParse(
 	if(resultJson !== null) {
 		const { outputExpr, outputError } = JSON.parse(resultJson) as WorkerParseResult;
 		respond({ tag: "workerParseResult", outputExpr, outputError });
+	} else {
+		respondFailure();
+	}
+
+	return;
+}
+
+function runInfer(
+	haskell: Haskell,
+	request: Infer
+) {
+	const inputBytes = encoder.encode(JSON.stringify(request.data));
+	let resultJson: string|null = null;
+
+	withBytesPtr(haskell, inputBytes, (inputPtr, inputLen) => {
+		const resultPtr = haskell.runInfer(inputPtr, inputLen);
+		const resultStr = decodeStringWithLen(haskell, resultPtr);
+		console.log(`result: ${resultStr}`);
+		resultJson = resultStr;
+	});
+
+	if(resultJson !== null) {
+		const result = JSON.parse(resultJson) as Omit<WorkerInferResult, "tag">;
+		respond({ tag: "workerInferResult", ...result });
 	} else {
 		respondFailure();
 	}

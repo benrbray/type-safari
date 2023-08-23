@@ -87,7 +87,7 @@ instance ToJSON Expr where
            , "value" .= Bool b
            ]
   toJSON (If cond etrue efalse) =
-    object [ "tag"    .= ("Let" :: Text)
+    object [ "tag"    .= ("If" :: Text)
            , "cond"   .= cond
            , "true"   .= etrue
            , "false"  .= efalse

@@ -7,10 +7,11 @@ module TypeSafari.HindleyMilner.Infer where
 import Protolude hiding (Type, TypeError(TypeError), Constraint)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import GHC.Base (error)
 import Control.Monad.Writer
 import Control.Monad.Trans.RWS (RWST, evalRWST)
 import TypeSafari.HindleyMilner.Syntax
+import TypeSafari.Pretty (Pretty (..), nl, sp)
+import TypeSafari.Core
 
 ---- types ---------------------------------------------------------------------
 
@@ -121,6 +122,30 @@ newtype InferState = InferState {
 data Constraint
   = Constraint Type Type
   deriving stock (Eq, Show)
+
+instance Pretty Type where
+  pretty :: Type -> Text
+  pretty (TypeVar t) = pretty t
+  pretty (TypeArr t1 t2) = "(" <> pretty t1 <> " --> " <> pretty t2 <> ")"
+  pretty t = show t
+
+instance Pretty TV where
+  pretty :: TV -> Text
+  pretty (TV (Name t)) = t
+  pretty (TV (Fresh k)) = "#" <> show k
+
+instance Pretty Constraint where
+  pretty :: Constraint -> Text
+  pretty (Constraint t1 t2) =
+    pretty t1 `sp` pretty t2
+
+instance Pretty TypeError where
+  pretty :: TypeError -> Text
+  pretty (UnificationFail t1 t2) = "cannot unify" `nl` pretty t1 `nl` pretty t2
+  pretty (InfiniteType x t) = "infinite type" `nl` pretty x `nl` pretty t
+  pretty err = show err
+
+--------------------------------------------------------------------------------
 
 -- | type inference monad
 type Infer a
@@ -286,7 +311,6 @@ unifyBind x t
     occursCheck :: Substitutable a => TV -> a -> Bool
     occursCheck y typ = y `Set.member` freeTypeVars typ
 
-
 unify :: Type -> Type -> Solve Subst
 unify t1 t2
   | t1 == t2 = pure emptySubst
@@ -308,3 +332,8 @@ unifyMany t1 t2 = throwError $ UnificationMismatch t1 t2
 
 --------------------------------------------------------------------------------
 
+hindleyMilner :: Expr -> Either TypeError Type
+hindleyMilner e = do
+  (partialType, constrs) <- runInfer $ infer e
+  subst <- runSolve $ solve (emptySubst, constrs)
+  pure $ applySubst subst partialType
