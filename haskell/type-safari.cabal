@@ -20,6 +20,7 @@ common common
     -Wno-missing-kind-signatures
     -Wno-missing-local-signatures
     -Wno-missing-safe-haskell-mode
+    -Wno-missing-role-annotations
     -Wno-monomorphism-restriction
     -Wno-prepositive-qualified-module
     -Wno-safe

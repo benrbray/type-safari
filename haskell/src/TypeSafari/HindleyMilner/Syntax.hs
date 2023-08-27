@@ -1,6 +1,5 @@
 module TypeSafari.HindleyMilner.Syntax where
 
-import Data.Text (Text)
 import Data.Aeson
 
 import TypeSafari.Core

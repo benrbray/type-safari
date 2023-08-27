@@ -6,7 +6,6 @@ module TypeSafari.Api.Infer where
 
 import Data.Aeson
 import GHC.Generics
-import Data.Text (Text)
 import Prelude
 
 import TypeSafari.Core

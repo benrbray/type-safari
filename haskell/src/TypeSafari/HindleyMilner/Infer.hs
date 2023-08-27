@@ -2,13 +2,15 @@
 -- https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html
 
 {-# LANGUAGE OverloadedStrings #-}
-module TypeSafari.HindleyMilner.Infer where
+module TypeSafari.HindleyMilner.Infer (
+  Type(..),
+  hindleyMilner
+) where
 
-import Protolude hiding (Type, TypeError(TypeError), Constraint)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Control.Monad.Writer
-import Control.Monad.Trans.RWS (RWST, evalRWST)
+import Control.Monad.Trans.RWS (RWST, evalRWST, ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Pretty (Pretty (..), nl, sp)
 import TypeSafari.Core
@@ -147,60 +149,98 @@ instance Pretty TypeError where
 
 --------------------------------------------------------------------------------
 
--- | type inference monad
-type Infer a
-  = (RWST
+-- below are the core type inference operations, written in "tagless-final" form
+-- so that they may be reinterpreted with respect to different concrete monads
+
+class (Monad m) => MonadTypeError m where
+  throwTypeError :: forall a. TypeError -> m a
+
+class (Monad m) => MonadTypeEnv m where
+  -- | Returns the current typing environment.
+  getTypeEnv :: m TypeEnv
+
+  -- | Return the type in the current environment associated
+  -- with the current name, if it exists.
+  typeOf :: Name -> m (Maybe Scheme)
+
+  -- | Executes the given @Infer@ action in an environment extended
+  -- with the passed type annotation.  Useful managing local scope.
+  inLocalScope :: (Name, Scheme) -> m a -> m a
+
+class (Monad m) => MonadInferState m where
+  -- | Generate a fresh type metavariable.
+  freshTypeVar :: m Type
+
+class (Monad m) => MonadConstraint m where
+  -- | Records a new unification constraint, to be solved later.
+  constrainEqual :: Type -> Type -> m ()
+
+type MonadInfer m = (MonadTypeError m, MonadTypeEnv m, MonadInferState m, MonadConstraint m)
+
+--------------------------------------------------------------------------------
+
+-- | type inference monad, suitable for actually running
+newtype InferConcrete a
+  = InferConcrete (RWST
       TypeEnv             -- R: current typing environment
       [Constraint]        -- W: generated constraints
       InferState          -- S: inference state
       (Except TypeError)  -- type inference errors
       a                   -- result
     )
+  deriving newtype (Functor, Applicative, Monad)
 
-type MonadTypeError m  = MonadError TypeError m
-type MonadTypeEnv m    = MonadReader TypeEnv m
-type MonadInferState m = MonadState InferState m
-type MonadConstraint m = MonadWriter [Constraint] m
-type MonadInfer m      = (MonadTypeError m, MonadTypeEnv m, MonadInferState m, MonadConstraint m)
 
-runInfer :: Infer Type -> Either TypeError (Type, [Constraint])
-runInfer m = runExcept $ evalRWST m emptyTypeEnv initialState
+runInfer :: InferConcrete Type -> Either TypeError (Type, [Constraint])
+runInfer (InferConcrete m) = runExcept $ evalRWST m emptyTypeEnv initialState
   where
     emptyTypeEnv = TypeEnv Map.empty
     initialState = InferState { freshCounter = 0 }
 
----- infer monad operations ----------------------------------------------------
+---- primitive operations for concrete infer monad -----------------------------
 
--- | Records a new unification constraint, to be solved later.
-addConstraint :: MonadWriter [Constraint] m => Type -> Type -> m ()
-addConstraint t1 t2 = tell [Constraint t1 t2]
+instance MonadTypeEnv InferConcrete where
+  getTypeEnv :: InferConcrete TypeEnv
+  getTypeEnv = InferConcrete ask
 
--- | Executes the given @Infer@ action in an environment extended
--- with the passed type annotation.  Useful managing local scope.
-inLocalScope :: MonadTypeEnv m => (Name, Scheme) -> m a -> m a
-inLocalScope (x, sch) m =
-  do
-    let scope :: TypeEnv -> TypeEnv
-        scope env = (remove env x) `extend` (x , sch)
-    local scope m
-  where 
-    remove :: TypeEnv -> Name -> TypeEnv
-    remove (TypeEnv env) k = TypeEnv $ Map.delete k env
+  typeOf :: Name -> InferConcrete (Maybe Scheme)
+  typeOf x = InferConcrete $ do
+    (TypeEnv env) <- ask
+    pure $ Map.lookup x env
 
--- | Generate a fresh type metavariable.
-fresh :: MonadInferState m => m Type
-fresh = do
-  InferState { freshCounter } <- get
-  put $ InferState { freshCounter = freshCounter + 1 }
-  return $ (TypeVar . TV . Fresh) freshCounter
+  inLocalScope :: (Name, Scheme) -> InferConcrete a -> InferConcrete a
+  inLocalScope (x, sch) (InferConcrete m) =
+    InferConcrete $ do
+      let scope :: TypeEnv -> TypeEnv
+          scope env = (remove env x) `extend` (x , sch)
+      local scope m
+    where 
+      remove :: TypeEnv -> Name -> TypeEnv
+      remove (TypeEnv env) k = TypeEnv $ Map.delete k env
+
+instance MonadConstraint InferConcrete where
+  constrainEqual :: Type -> Type -> InferConcrete ()
+  constrainEqual t1 t2 = InferConcrete $ tell [Constraint t1 t2]
+
+instance MonadInferState InferConcrete where
+  freshTypeVar :: InferConcrete Type
+  freshTypeVar = InferConcrete $ do
+    InferState { freshCounter } <- get
+    put $ InferState { freshCounter = freshCounter + 1 }
+    return $ (TypeVar . TV . Fresh) freshCounter
+
+instance MonadTypeError InferConcrete where
+  throwTypeError :: forall a. TypeError -> InferConcrete a
+  throwTypeError err = InferConcrete $ throwError err
+
+---- generic operations built from primitives ----------------------------------
 
 -- looks up a local variable in the typing env,
 -- and if found instantiates a fresh copy
 lookupEnv :: MonadInfer m => Name -> m Type
-lookupEnv x = do
-  TypeEnv env <- ask
-  case Map.lookup x env of
-    Nothing  -> throwError $ UnboundVariable x
+lookupEnv x = typeOf x >>=
+  \case
+    Nothing  -> throwTypeError $ UnboundVariable x
     Just sch -> instantiate sch
 
 ---- hindley-milner generalization & instantiation -----------------------------
@@ -208,7 +248,7 @@ lookupEnv x = do
 -- | bind fresh typevars for each typevar mentioned in the forall
 instantiate :: MonadInferState m => Scheme -> m Type
 instantiate (Forall as0 t) = do
-  as1 <- traverse (const fresh) as0
+  as1 <- traverse (const freshTypeVar) as0
   let s = Map.fromList $ zip as0 as1
   return $ applySubst s t
 
@@ -216,7 +256,7 @@ instantiate (Forall as0 t) = do
 -- (which are not also mentioned in the typing environment)
 generalize :: MonadTypeEnv m => Type -> m Scheme
 generalize t = do
-  env <- ask
+  env <- getTypeEnv
   let as = Set.toList $ freeTypeVars t `Set.difference` freeTypeVars env
   return $ Forall as t
 
@@ -234,15 +274,15 @@ infer ex = case ex of
   Var x -> lookupEnv x
 
   Lam x e -> do
-    tv <- fresh
+    tv <- freshTypeVar
     t  <- inLocalScope (x, Forall [] tv) (infer e)
     return (tv `TypeArr` t)
   
   App efun earg -> do
-    tres <- fresh
+    tres <- freshTypeVar
     tfun <- infer efun
     targ <- infer earg
-    addConstraint tfun (TypeArr targ tres)
+    constrainEqual tfun (TypeArr targ tres)
     return tres
 
   Let x e1 e2 -> do
@@ -256,24 +296,24 @@ infer ex = case ex of
     ttru  <- infer etru
     tfls  <- infer efls
 
-    addConstraint tcond typeBool
-    addConstraint ttru tfls
+    constrainEqual tcond typeBool
+    constrainEqual ttru tfls
 
     return ttru
 
   Fix e -> do
     t    <- infer e
-    tres <- fresh
-    addConstraint t (TypeArr tres tres)
+    tres <- freshTypeVar
+    constrainEqual t (TypeArr tres tres)
     return t
   
   Op op e1 e2 -> do
     t1     <- infer e1
     t2     <- infer e2
-    tres   <- fresh
+    tres   <- freshTypeVar
     
     let top = ops Map.! op
-    addConstraint (TypeArr t1 (TypeArr t2 tres)) top
+    constrainEqual (TypeArr t1 (TypeArr t2 tres)) top
 
     return tres
 
