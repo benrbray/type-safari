@@ -2,7 +2,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module TypeSafari.Api.Infer where
+module TypeSafari.Api.InferConcrete where
 
 import Data.Aeson
 import GHC.Generics
@@ -11,8 +11,9 @@ import Prelude
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
-import TypeSafari.HindleyMilner.Infer (hindleyMilner, Type)
+import TypeSafari.HindleyMilner.Infer (Type)
 import TypeSafari.Pretty (Pretty(..))
+import TypeSafari.HindleyMilner.Infer.Concrete (runConcrete, hindleyMilner)
 
 --------------------------------------------------------------------------------
 
@@ -32,10 +33,11 @@ data Output = Output {
 
 --------------------------------------------------------------------------------
 
-runInfer :: Input -> IO Output
-runInfer Input{..} = pure . fromEither $ do
+runHindleyMilner :: Input -> IO Output
+runHindleyMilner Input{..} = pure . fromEither $ do
   ParseResult { parsedExpr } <- mapLeft mkOutputParseError $ parse inputText
-  inferredType <- mapLeft (mkOutputTypeError parsedExpr . pretty) $ hindleyMilner parsedExpr
+  let run = hindleyMilner runConcrete parsedExpr
+  inferredType <- mapLeft (mkOutputTypeError parsedExpr . pretty) run
   pure $ mkOutput parsedExpr inferredType
 
 mkOutputParseError :: Text -> Output

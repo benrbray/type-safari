@@ -3,14 +3,27 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 module TypeSafari.HindleyMilner.Infer (
+  Scheme (..),
   Type(..),
-  hindleyMilner
+  TypeEnv (..),
+  TV (..),
+  TypeError (..),
+  Constraint (..),
+  MonadTypeEnv (..),
+  MonadConstraint (..),
+  MonadTypeError (..),
+  MonadFresh (..),
+  MonadInfer (..),
+  extend,
+  infer,
+  solve,
+  runSolve,
+  emptySubst,
+  applySubst
 ) where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Control.Monad.Writer
-import Control.Monad.Trans.RWS (RWST, evalRWST, ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Pretty (Pretty (..), nl, sp)
 import TypeSafari.Core
@@ -116,10 +129,6 @@ data TypeError
   | UnboundVariable Name
   deriving stock (Show)
 
-newtype InferState = InferState {
-  freshCounter :: Int
-}
-
 -- constraints record assertions that two types must unify
 data Constraint
   = Constraint Type Type
@@ -147,7 +156,7 @@ instance Pretty TypeError where
   pretty (InfiniteType x t) = "infinite type" `nl` pretty x `nl` pretty t
   pretty err = show err
 
---------------------------------------------------------------------------------
+---- primitive type inference operations ---------------------------------------
 
 -- below are the core type inference operations, written in "tagless-final" form
 -- so that they may be reinterpreted with respect to different concrete monads
@@ -167,7 +176,7 @@ class (Monad m) => MonadTypeEnv m where
   -- with the passed type annotation.  Useful managing local scope.
   inLocalScope :: (Name, Scheme) -> m a -> m a
 
-class (Monad m) => MonadInferState m where
+class (Monad m) => MonadFresh m where
   -- | Generate a fresh type metavariable.
   freshTypeVar :: m Type
 
@@ -175,63 +184,11 @@ class (Monad m) => MonadConstraint m where
   -- | Records a new unification constraint, to be solved later.
   constrainEqual :: Type -> Type -> m ()
 
-type MonadInfer m = (MonadTypeError m, MonadTypeEnv m, MonadInferState m, MonadConstraint m)
-
---------------------------------------------------------------------------------
-
--- | type inference monad, suitable for actually running
-newtype InferConcrete a
-  = InferConcrete (RWST
-      TypeEnv             -- R: current typing environment
-      [Constraint]        -- W: generated constraints
-      InferState          -- S: inference state
-      (Except TypeError)  -- type inference errors
-      a                   -- result
-    )
-  deriving newtype (Functor, Applicative, Monad)
-
-
-runInfer :: InferConcrete Type -> Either TypeError (Type, [Constraint])
-runInfer (InferConcrete m) = runExcept $ evalRWST m emptyTypeEnv initialState
-  where
-    emptyTypeEnv = TypeEnv Map.empty
-    initialState = InferState { freshCounter = 0 }
-
----- primitive operations for concrete infer monad -----------------------------
-
-instance MonadTypeEnv InferConcrete where
-  getTypeEnv :: InferConcrete TypeEnv
-  getTypeEnv = InferConcrete ask
-
-  typeOf :: Name -> InferConcrete (Maybe Scheme)
-  typeOf x = InferConcrete $ do
-    (TypeEnv env) <- ask
-    pure $ Map.lookup x env
-
-  inLocalScope :: (Name, Scheme) -> InferConcrete a -> InferConcrete a
-  inLocalScope (x, sch) (InferConcrete m) =
-    InferConcrete $ do
-      let scope :: TypeEnv -> TypeEnv
-          scope env = (remove env x) `extend` (x , sch)
-      local scope m
-    where 
-      remove :: TypeEnv -> Name -> TypeEnv
-      remove (TypeEnv env) k = TypeEnv $ Map.delete k env
-
-instance MonadConstraint InferConcrete where
-  constrainEqual :: Type -> Type -> InferConcrete ()
-  constrainEqual t1 t2 = InferConcrete $ tell [Constraint t1 t2]
-
-instance MonadInferState InferConcrete where
-  freshTypeVar :: InferConcrete Type
-  freshTypeVar = InferConcrete $ do
-    InferState { freshCounter } <- get
-    put $ InferState { freshCounter = freshCounter + 1 }
-    return $ (TypeVar . TV . Fresh) freshCounter
-
-instance MonadTypeError InferConcrete where
-  throwTypeError :: forall a. TypeError -> InferConcrete a
-  throwTypeError err = InferConcrete $ throwError err
+class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m) => MonadInfer m where
+  -- | To be called each time an expression is visited during recursion.
+  -- This is purely for debugging purposes, and should be pure for `InferConcrete`.
+  -- TODO: Is there a recursion-schemes way to do this without having a typeclass?
+  visit :: Expr -> m ()
 
 ---- generic operations built from primitives ----------------------------------
 
@@ -243,10 +200,8 @@ lookupEnv x = typeOf x >>=
     Nothing  -> throwTypeError $ UnboundVariable x
     Just sch -> instantiate sch
 
----- hindley-milner generalization & instantiation -----------------------------
-
 -- | bind fresh typevars for each typevar mentioned in the forall
-instantiate :: MonadInferState m => Scheme -> m Type
+instantiate :: MonadFresh m => Scheme -> m Type
 instantiate (Forall as0 t) = do
   as1 <- traverse (const freshTypeVar) as0
   let s = Map.fromList $ zip as0 as1
@@ -260,17 +215,13 @@ generalize t = do
   let as = Set.toList $ freeTypeVars t `Set.difference` freeTypeVars env
   return $ Forall as t
 
---------------------------------------------------------------------------------
+---- constraint generation -----------------------------------------------------
 
--- maps the local typing env and the active expression to a tuple containing
---     a partial solution to unification
---     the intermediate type
--- the AST is traversed bottom-up and constraints are solved at each level of
--- recursion by applying partial substitutions from unification across each
--- partially inferred subexpression and the local environment
+-- | generates equality constraints between types, in a bottom-up,
+-- manner to be solved by the unification engine later
 infer :: MonadInfer m => Expr -> m Type
-infer ex = case ex of
-  
+infer ex = visit ex >> case ex of
+
   Var x -> lookupEnv x
 
   Lam x e -> do
@@ -369,11 +320,3 @@ unifyMany (t1 : ts1) (t2 : ts2) =
     -- QUESTION: does the order of @merge@ matter here?
      return (subst1 `merge` subst2)
 unifyMany t1 t2 = throwError $ UnificationMismatch t1 t2
-
---------------------------------------------------------------------------------
-
-hindleyMilner :: Expr -> Either TypeError Type
-hindleyMilner e = do
-  (partialType, constrs) <- runInfer $ infer e
-  subst <- runSolve $ solve (emptySubst, constrs)
-  pure $ applySubst subst partialType

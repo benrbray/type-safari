@@ -81,8 +81,12 @@ const workerApi = {
     return callWorkerApi("runParse", { inputText });
   },
 
-  async runInfer(inputText: string) {
-    return callWorkerApi("runInfer", { inputText });
+  async runInferAbstract(inputText: string) {
+    return callWorkerApi("runInferAbstract", { inputText });
+  },
+
+  async runInferConcrete(inputText: string) {
+    return callWorkerApi("runInferConcrete", { inputText });
   }
 }
 
@@ -96,7 +100,7 @@ const App = function () {
   const [resultType, setResultType] = createSignal<string>("");
 
   const handleClick = async () => {
-    const result = await workerApi.runInfer(userText());
+    const result = await workerApi.runInferAbstract(userText());
 
     console.log("[main]", result);
 

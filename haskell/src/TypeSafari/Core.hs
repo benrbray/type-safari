@@ -10,7 +10,7 @@ module TypeSafari.Core (
 ) where
 
 import Prelude hiding (Show, show)
-import Protolude (Show, show)
+import Protolude (Show, show, catMaybes, mapMaybe)
 import Data.Either.Extra
 import Data.Functor.Identity
 import Data.Text (Text)

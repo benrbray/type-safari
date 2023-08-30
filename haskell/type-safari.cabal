@@ -89,11 +89,14 @@ common common
 common type-safari
   other-modules:
     TypeSafari.Api.Parse
-    TypeSafari.Api.Infer
+    TypeSafari.Api.InferAbstract
+    TypeSafari.Api.InferConcrete
     TypeSafari.Core
     TypeSafari.FFI.StringWithLen
     TypeSafari.FFI.Util
     TypeSafari.HindleyMilner.Infer
+    TypeSafari.HindleyMilner.Infer.Abstract
+    TypeSafari.HindleyMilner.Infer.Concrete
     TypeSafari.HindleyMilner.Parse
     TypeSafari.HindleyMilner.Syntax
     TypeSafari.Pretty
@@ -130,5 +133,6 @@ executable type-safari-wasm
     \,--export=runFibonacci\
     \,--export=runToUpper\
     \,--export=runParse\
-    \,--export=runInfer\
+    \,--export=runInferAbstract\
+    \,--export=runInferConcrete\
     \"

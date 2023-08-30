@@ -20,5 +20,6 @@ export type WasmApi = {
 	runToUpper: StringOp;
 	// type-safari
   runParse: JsonOp;
-  runInfer: JsonOp;
+  runInferAbstract: JsonOp;
+  runInferConcrete: JsonOp;
 }

@@ -59,7 +59,10 @@ async function main() {
 
 		     if(req.tag === "toUpper")  { runToUpper(haskell, req.data);            }
 		else if(req.tag === "runParse") { runJsonOp(haskell, "runParse", req.data); }
-		else if(req.tag === "runInfer") { runJsonOp(haskell, "runInfer", req.data); }
+		else if(req.tag === "runInferAbstract")
+			{ runJsonOp(haskell, "runInferAbstract", req.data); }
+		else if(req.tag === "runInferConcrete")
+			{ runJsonOp(haskell, "runInferConcrete", req.data); }
 		else                            { respondUnknown();                         }
 	};
 
