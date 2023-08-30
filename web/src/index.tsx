@@ -98,6 +98,8 @@ const App = function () {
   const [userText, setUserText] = createSignal<string>("");
   const [resultExpr, setResultExpr] = createSignal<string>("");
   const [resultType, setResultType] = createSignal<string>("");
+  const [resultSubst, setResultSubst] = createSignal<string>("");
+  const [resultActions, setResultActions] = createSignal<string>("");
 
   const handleClick = async () => {
     const result = await workerApi.runInferAbstract(userText());
@@ -112,6 +114,8 @@ const App = function () {
 
     setResultExpr(expr || "");
     setResultType(tp);
+    setResultSubst(JSON.stringify(result.data.outputSubst, undefined, 2));
+    setResultActions(JSON.stringify(result.data.outputActions, undefined, 2));
   }
 
   return (<div class="demo">
@@ -125,6 +129,8 @@ const App = function () {
     <div class="bottom">
       <pre class="resultExpr"><code>{resultExpr()}</code></pre>
       <pre class="resultType"><code>{resultType()}</code></pre>
+      <pre class="resultSubst"><code>{resultSubst()}</code></pre>
+      <pre class="resultActions"><code>{resultActions()}</code></pre>
     </div>
   </div>);
 }

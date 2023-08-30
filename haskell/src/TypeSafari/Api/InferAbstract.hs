@@ -4,16 +4,16 @@
 
 module TypeSafari.Api.InferAbstract where
 
-import Data.Aeson
+import Data.Aeson hiding (Result)
+import Data.Map as Map
 import GHC.Generics
-import Prelude
 
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
-import TypeSafari.HindleyMilner.Infer (Type)
+import TypeSafari.HindleyMilner.Infer (Subst)
 import TypeSafari.Pretty (Pretty(..))
-import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner)
+import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner, Result (..))
 
 --------------------------------------------------------------------------------
 
@@ -25,6 +25,8 @@ newtype Input = Input {
 
 data Output = Output {
     outputType :: Maybe Text,
+    outputSubst :: Maybe (Map Text Text),
+    outputActions :: Maybe [Text],
     outputExpr :: Maybe Stx.Expr,
     outputError :: Maybe Text
   }
@@ -36,27 +38,36 @@ data Output = Output {
 run :: Input -> IO Output
 run Input{..} = pure . fromEither $ do
   ParseResult { parsedExpr } <- mapLeft mkOutputParseError $ parse inputText
-  inferredType <- mapLeft (mkOutputTypeError parsedExpr . pretty) (hindleyMilner parsedExpr)
-  pure $ mkOutput parsedExpr inferredType
+  result <- mapLeft (mkOutputTypeError parsedExpr . pretty) (hindleyMilner parsedExpr)
+  pure $ mkOutput parsedExpr result
 
 mkOutputParseError :: Text -> Output
 mkOutputParseError err = Output {
     outputType = Nothing,
     outputExpr = Nothing,
+    outputSubst = Nothing,
+    outputActions = Nothing,
     outputError = Just err
   }
 
 mkOutputTypeError :: Stx.Expr -> Text -> Output
 mkOutputTypeError expr err = Output {
     outputType = Nothing,
+    outputSubst = Nothing,
+    outputActions = Nothing,
     outputExpr = Just expr,
     outputError = Just err
   }
 
-mkOutput :: Stx.Expr -> Type -> Output
-mkOutput e t = Output {
-    outputType = Just $ pretty t,
+mkSubst :: Subst -> Map Text Text
+mkSubst = Map.mapKeys pretty . Map.map pretty
+
+mkOutput :: Stx.Expr -> Result -> Output
+mkOutput e Result{..} = Output {
+    outputType = Just $ pretty resultType,
     outputExpr = Just e,
+    outputSubst = Just $ mkSubst resultSubst,
+    outputActions = Just $ pretty <$> resultActions,
     outputError = Nothing
   }
 
@@ -65,5 +76,7 @@ dispError t =
   Output {
     outputType = Nothing,
     outputExpr = Nothing,
+    outputSubst = Nothing,
+    outputActions = Nothing,
     outputError = Just t
   }

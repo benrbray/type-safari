@@ -1,4 +1,10 @@
-module TypeSafari.HindleyMilner.Infer.Abstract where
+module TypeSafari.HindleyMilner.Infer.Abstract (
+  InferAction(..),
+  InferState(..),
+  runAbstract,
+  hindleyMilner,
+  Result(..)
+) where
 
 import Data.Map qualified as Map
 import Control.Monad.Writer
@@ -6,12 +12,20 @@ import Control.Monad.Trans.RWS (RWST, evalRWST, ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Infer
+import TypeSafari.Pretty (Pretty(..))
 
 ------------------------------------------------------------
 
 data InferAction
   = ActionConstrainEqual Type Type
   | ActionInfer Expr
+  | ActionDebug Text
+  deriving stock (Show)
+
+instance Pretty InferAction where
+  pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " // " <> (pretty t2)
+  pretty (ActionInfer e) = "infer " <> pretty e
+  pretty (ActionDebug e) = "debug " <> e
 
 -- | type inference monad, suitable for actually running
 newtype InferAbstract a
@@ -74,14 +88,27 @@ instance MonadInfer InferAbstract where
   visit :: Expr -> InferAbstract ()
   visit e = InferAbstract $ tell [ActionInfer e]
 
+  debug :: Text -> InferAbstract()
+  debug t = InferAbstract $ tell [ActionDebug t]
+
 ------------------------------------------------------------
 
-hindleyMilner :: Expr -> Either TypeError Type
+data Result = Result {
+    resultType :: Type,
+    resultSubst :: Subst,
+    resultActions :: [InferAction]
+  }
+
+hindleyMilner :: Expr -> Either TypeError Result
 hindleyMilner e = do
   (partialType, actions) <- runAbstract $ infer e
   let constrs = mapMaybe constrFromAction actions
   subst <- runSolve $ solve (emptySubst, constrs)
-  pure $ applySubst subst partialType
+  pure $ Result {
+    resultType = applySubst subst partialType,
+    resultSubst = subst,
+    resultActions = actions
+  }
   where
     constrFromAction :: InferAction -> Maybe Constraint
     constrFromAction (ActionConstrainEqual t1 t2) = Just $ Constraint t1 t2

@@ -46,6 +46,8 @@ export interface WorkerResultData {
 		outputExpr?: any|undefined
 		outputType?: any|undefined
 		outputError?: string|undefined
+		outputSubst?: { [typeVar:string] : string }|undefined
+		outputActions?: string[] |undefined
 	},
 	"runInferConcrete" : {
 		outputExpr?: any|undefined

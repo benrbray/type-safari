@@ -67,6 +67,8 @@ instance MonadTypeError InferConcrete where
 instance MonadInfer InferConcrete where
   visit :: Expr -> InferConcrete ()
   visit _ = pure ()
+  debug :: Text -> InferConcrete ()
+  debug _ = pure ()
 
 ------------------------------------------------------------
 

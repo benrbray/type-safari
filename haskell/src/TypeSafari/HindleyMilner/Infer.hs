@@ -18,6 +18,7 @@ module TypeSafari.HindleyMilner.Infer (
   infer,
   solve,
   runSolve,
+  Subst,
   emptySubst,
   applySubst
 ) where
@@ -79,6 +80,7 @@ class Substitutable a where
   freeTypeVars :: a -> Set TV
 
 instance Substitutable Type where
+  -- TODO (Ben @ 2023/08/30) address https://github.com/sdiehl/write-you-a-haskell/issues/116
   applySubst :: Subst -> Type -> Type
   applySubst _ t@(TypeCon _)   = t
   applySubst s t@(TypeVar x)   = Map.findWithDefault t x s
@@ -189,6 +191,7 @@ class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m) => Mon
   -- This is purely for debugging purposes, and should be pure for `InferConcrete`.
   -- TODO: Is there a recursion-schemes way to do this without having a typeclass?
   visit :: Expr -> m ()
+  debug :: Text -> m ()
 
 ---- generic operations built from primitives ----------------------------------
 
@@ -201,11 +204,13 @@ lookupEnv x = typeOf x >>=
     Just sch -> instantiate sch
 
 -- | bind fresh typevars for each typevar mentioned in the forall
-instantiate :: MonadFresh m => Scheme -> m Type
+instantiate :: MonadInfer m => Scheme -> m Type
 instantiate (Forall as0 t) = do
   as1 <- traverse (const freshTypeVar) as0
   let s = Map.fromList $ zip as0 as1
-  return $ applySubst s t
+  let result = applySubst s t
+  debug $ "instantiate " <>  "∀" <> (show $ pretty <$> as0) <> ". " <> pretty t <> " ===> " <> pretty result
+  return result
 
 -- | universally quantify over any free variables in a given type
 -- (which are not also mentioned in the typing environment)
@@ -238,6 +243,7 @@ infer ex = visit ex >> case ex of
 
   Let x e1 e2 -> do
     -- let-generalization
+    debug "" 
     te1 <- generalize =<< infer e1
     te2 <- inLocalScope (x, te1) (infer e2)
     return te2
