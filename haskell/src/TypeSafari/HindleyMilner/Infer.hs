@@ -231,6 +231,7 @@ infer ex = visit ex >> case ex of
 
   Lam x e -> do
     tv <- freshTypeVar
+    -- note: program vars bound by lambdas are given _monotypes_
     t  <- inLocalScope (x, Forall [] tv) (infer e)
     return (tv `TypeArr` t)
   
