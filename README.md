@@ -1,6 +1,9 @@
 # `type-safari`
 
-With this project, I aim to collect reference implementations of type inference algorithms, with particular emphasis on those features which are necessary for practical implementations, such as error reporting and incrementality.  The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series, but it has already diverged substantially.
+With this project, I aim to collect reference implementations of type inference algorithms, with particular emphasis on those features which are necessary for practical implementations, such as error reporting and incrementality.  
+
+* The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series, but it has already diverged substantially.
+* The name (and project) is inspired by Andras Kovacs' ["Elaboration Zoo"](https://github.com/AndrasKovacs/elaboration-zoo).  I briefly considered *Type Petting Zoo* for the name, but thought it might be a bit too silly :)
 
 ## Goals
 
