@@ -20,7 +20,6 @@ common common
     -Wno-missing-kind-signatures
     -Wno-missing-local-signatures
     -Wno-missing-safe-haskell-mode
-    -Wno-missing-role-annotations
     -Wno-monomorphism-restriction
     -Wno-prepositive-qualified-module
     -Wno-safe
@@ -119,6 +118,7 @@ executable type-safari-wasm
   ghc-options:
     -Wall
     -Wunused-packages
+    -Wno-missing-role-annotations
     -no-hs-main
     -optl-mexec-model=reactor
     "-optl-Wl\

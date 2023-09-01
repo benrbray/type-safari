@@ -11,7 +11,7 @@ import GHC.Generics
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
-import TypeSafari.HindleyMilner.Infer (Subst)
+import TypeSafari.HindleyMilner.Infer (SubstMV)
 import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner, Result (..))
 
@@ -59,7 +59,7 @@ mkOutputTypeError expr err = Output {
     outputError = Just err
   }
 
-mkSubst :: Subst -> Map Text Text
+mkSubst :: SubstMV -> Map Text Text
 mkSubst = Map.mapKeys pretty . Map.map pretty
 
 mkOutput :: Stx.Expr -> Result -> Output

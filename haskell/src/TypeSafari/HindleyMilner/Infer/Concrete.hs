@@ -34,12 +34,12 @@ instance MonadTypeEnv InferConcrete where
   getTypeEnv :: InferConcrete TypeEnv
   getTypeEnv = InferConcrete ask
 
-  typeOf :: Name -> InferConcrete (Maybe Scheme)
+  typeOf :: Name -> InferConcrete (Maybe TypeScheme)
   typeOf x = InferConcrete $ do
     (TypeEnv env) <- ask
     pure $ Map.lookup x env
 
-  inLocalScope :: (Name, Scheme) -> InferConcrete a -> InferConcrete a
+  inLocalScope :: (Name, TypeScheme) -> InferConcrete a -> InferConcrete a
   inLocalScope (x, sch) (InferConcrete m) =
     InferConcrete $ do
       let scope :: TypeEnv -> TypeEnv
@@ -53,18 +53,28 @@ instance MonadConstraint InferConcrete where
   constrainEqual :: Type -> Type -> InferConcrete ()
   constrainEqual t1 t2 = InferConcrete $ tell [Constraint t1 t2]
 
+freshInt :: InferConcrete Int
+freshInt = InferConcrete $ do
+  InferState { freshCounter } <- get
+  let newValue = freshCounter + 1
+  put $ InferState { freshCounter = newValue }
+  return newValue
+
 instance MonadFresh InferConcrete where
-  freshTypeVar :: InferConcrete Type
-  freshTypeVar = InferConcrete $ do
-    InferState { freshCounter } <- get
-    put $ InferState { freshCounter = freshCounter + 1 }
-    return $ (TypeVar . TV . Fresh) freshCounter
+
+  freshMetaVar :: InferConcrete MV
+  freshMetaVar = (MV . Fresh) <$> freshInt
+
+  freshTypeVar :: InferConcrete TV
+  freshTypeVar = (TvBound . Fresh) <$> freshInt
 
 instance MonadTypeError InferConcrete where
   throwTypeError :: forall a. TypeError -> InferConcrete a
   throwTypeError err = InferConcrete $ throwError err
 
 instance MonadInfer InferConcrete where
+  annot :: Expr -> Type -> InferConcrete Type
+  annot _ = pure
   visit :: Expr -> InferConcrete ()
   visit _ = pure ()
   debug :: Text -> InferConcrete ()
@@ -78,5 +88,5 @@ hindleyMilner :: (MonadInfer m) =>
   -> Either TypeError Type
 hindleyMilner run e = do
   (partialType, constrs) <- run $ infer e
-  subst <- runSolve $ solve (emptySubst, constrs)
-  pure $ applySubst subst partialType
+  subst <- solve constrs
+  pure $ substMetaVars subst partialType

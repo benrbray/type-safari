@@ -19,13 +19,15 @@ import TypeSafari.Pretty (Pretty(..))
 data InferAction
   = ActionConstrainEqual Type Type
   | ActionInfer Expr
+  | ActionAnnot Expr Type
   | ActionDebug Text
   deriving stock (Show)
 
 instance Pretty InferAction where
-  pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " // " <> (pretty t2)
-  pretty (ActionInfer e) = "infer " <> pretty e
-  pretty (ActionDebug e) = "debug " <> e
+  pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " === " <> (pretty t2)
+  pretty (ActionInfer e)              = "infer " <> pretty e
+  pretty (ActionAnnot e t)            = "annot " <> pretty e <> " :: " <> pretty t
+  pretty (ActionDebug e)              = "debug " <> e
 
 -- | type inference monad, suitable for actually running
 newtype InferAbstract a
@@ -54,12 +56,12 @@ instance MonadTypeEnv InferAbstract where
   getTypeEnv :: InferAbstract TypeEnv
   getTypeEnv = InferAbstract ask
 
-  typeOf :: Name -> InferAbstract (Maybe Scheme)
+  typeOf :: Name -> InferAbstract (Maybe TypeScheme)
   typeOf x = InferAbstract $ do
     (TypeEnv env) <- ask
     pure $ Map.lookup x env
 
-  inLocalScope :: (Name, Scheme) -> InferAbstract a -> InferAbstract a
+  inLocalScope :: (Name, TypeScheme) -> InferAbstract a -> InferAbstract a
   inLocalScope (x, sch) (InferAbstract m) =
     InferAbstract $ do
       let scope :: TypeEnv -> TypeEnv
@@ -73,12 +75,20 @@ instance MonadConstraint InferAbstract where
   constrainEqual :: Type -> Type -> InferAbstract ()
   constrainEqual t1 t2 = InferAbstract $ tell [ActionConstrainEqual t1 t2]
 
+freshInt :: InferAbstract Int
+freshInt = InferAbstract $ do
+  InferState { freshCounter } <- get
+  let newValue = freshCounter + 1
+  put $ InferState { freshCounter = newValue }
+  return newValue
+
 instance MonadFresh InferAbstract where
-  freshTypeVar :: InferAbstract Type
-  freshTypeVar = InferAbstract $ do
-    InferState { freshCounter } <- get
-    put $ InferState { freshCounter = freshCounter + 1 }
-    return $ (TypeVar . TV . Fresh) freshCounter
+
+  freshMetaVar :: InferAbstract MV
+  freshMetaVar = (MV . Fresh) <$> freshInt
+
+  freshTypeVar :: InferAbstract TV
+  freshTypeVar = (TvBound . Fresh) <$> freshInt
 
 instance MonadTypeError InferAbstract where
   throwTypeError :: forall a. TypeError -> InferAbstract a
@@ -87,6 +97,10 @@ instance MonadTypeError InferAbstract where
 instance MonadInfer InferAbstract where
   visit :: Expr -> InferAbstract ()
   visit e = InferAbstract $ tell [ActionInfer e]
+  annot :: Expr -> Type -> InferAbstract Type
+  annot e t = InferAbstract $ do
+    tell [ActionAnnot e t]
+    pure t
 
   debug :: Text -> InferAbstract()
   debug t = InferAbstract $ tell [ActionDebug t]
@@ -95,17 +109,18 @@ instance MonadInfer InferAbstract where
 
 data Result = Result {
     resultType :: Type,
-    resultSubst :: Subst,
+    resultSubst :: SubstMV,
     resultActions :: [InferAction]
   }
+  deriving stock (Show)
 
 hindleyMilner :: Expr -> Either TypeError Result
 hindleyMilner e = do
   (partialType, actions) <- runAbstract $ infer e
   let constrs = mapMaybe constrFromAction actions
-  subst <- runSolve $ solve (emptySubst, constrs)
+  subst <- solve constrs
   pure $ Result {
-    resultType = applySubst subst partialType,
+    resultType = substMetaVars subst partialType,
     resultSubst = subst,
     resultActions = actions
   }
