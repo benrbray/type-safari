@@ -60,7 +60,9 @@ data Type
   deriving stock (Show, Eq, Ord)
 
 -- type scheme models polymorphic types
-data TypeScheme = Forall [TV] Type
+data TypeScheme
+  = Forall [TV] Type
+  deriving stock (Eq, Show)
 
 ---- type constants ------------------------------------------------------------
 
@@ -127,8 +129,21 @@ instance MetaVarSubst TypeEnv where
   freeMetaVars (TypeEnv env) = freeMetaVars $ Map.elems env
 
 instance MetaVarSubst Constraint where
-  substMetaVars s (Constraint t1 t2) = Constraint (substMetaVars s t1) (substMetaVars s t2)
-  freeMetaVars (Constraint t1 t2) = (freeMetaVars t1) `Set.union` (freeMetaVars t2)
+  substMetaVars s (ConstraintEqual t1 t2) =
+    ConstraintEqual (substMetaVars s t1) (substMetaVars s t2)
+  -- TODO: are the defs below correct?  are they required?
+  substMetaVars s (ConstraintExplicitInstance t sch) =
+    ConstraintExplicitInstance (substMetaVars s t) (substMetaVars s sch)
+  substMetaVars s (ConstraintImplicitInstance t1 t2) =
+    ConstraintImplicitInstance (substMetaVars s t1) (substMetaVars s t2)
+
+  freeMetaVars (ConstraintEqual t1 t2) =
+    (freeMetaVars t1) `Set.union` (freeMetaVars t2)
+  -- TODO: are the defs below correct?  are they required?
+  freeMetaVars (ConstraintExplicitInstance t sch) =
+    (freeMetaVars t) `Set.union` (freeMetaVars sch)
+  freeMetaVars (ConstraintImplicitInstance t1 t2) =
+    (freeMetaVars t1) `Set.union` (freeMetaVars t2)
 
 emptySubstMV :: SubstMV
 emptySubstMV = Map.empty
@@ -170,9 +185,18 @@ data TypeError
   | UnboundVariable Name
   deriving stock (Show)
 
--- constraints record assertions that two types must unify
 data Constraint
-  = Constraint Type Type
+  -- | @t1 = t2@ means the types should be equal, after replacing metavariables.
+  = ConstraintEqual Type Type
+  -- | @t < σ@ means type @t@ should be an instance of type scheme @σ@, after
+  -- replacing metavariables.  Useful if we know the type scheme of an expression
+  -- before type inference begins.
+  | ConstraintExplicitInstance Type TypeScheme
+  -- | @t1 < t2@ means type @t1@ should be an instance of the type scheme
+  -- obtained by generalizing @t2@.  This records the fact that in general,
+  -- the (polymorphic) type of a declaration in a let-expression is unknown
+  -- and must be inferred before it can be instantiated.
+  | ConstraintImplicitInstance Type Type
   deriving stock (Eq, Show)
 
 instance Pretty Type where
@@ -200,8 +224,12 @@ instance Pretty MV where
 
 instance Pretty Constraint where
   pretty :: Constraint -> Text
-  pretty (Constraint t1 t2) =
-    pretty t1 `sp` pretty t2
+  pretty (ConstraintEqual t1 t2) =
+    pretty t1 <> " === " <> pretty t2
+  pretty (ConstraintExplicitInstance t sch) =
+    pretty t <> " :<: " <> pretty sch
+  pretty (ConstraintImplicitInstance t1 t2) =
+    pretty t1 <> " :<m<: " <> pretty t2
 
 instance Pretty TypeError where
   pretty :: TypeError -> Text
@@ -353,9 +381,15 @@ solve = runSolve . solvePartial . (emptySubstMV,)
 -- recursively solves 
 solvePartial :: PartialUnifier -> Solve SubstMV
 solvePartial (subst0, []) = pure subst0
-solvePartial (subst0, (Constraint t1 t2) : constrs) = do
+solvePartial (subst0, (ConstraintEqual t1 t2) : constrs) = do
   subst1 <- unify t1 t2
   solvePartial (subst1 `merge` subst0, substMetaVars subst1 constrs)
+solvePartial (subst0, (ConstraintExplicitInstance _ _) : constrs) = do
+  -- TODO
+  solvePartial (subst0, constrs)
+solvePartial (subst0, (ConstraintImplicitInstance _ _) : constrs) = do
+  -- TODO
+  solvePartial (subst0, constrs)
 
 -- to unify a lone metavariable @m@ with a type @t@, simply return
 -- the substitution @{ x <- t }@, provided that the occurs check passes

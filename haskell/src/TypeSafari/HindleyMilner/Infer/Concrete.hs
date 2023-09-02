@@ -51,7 +51,7 @@ instance MonadTypeEnv InferConcrete where
 
 instance MonadConstraint InferConcrete where
   constrainEqual :: Type -> Type -> InferConcrete ()
-  constrainEqual t1 t2 = InferConcrete $ tell [Constraint t1 t2]
+  constrainEqual t1 t2 = InferConcrete $ tell [ConstraintEqual t1 t2]
 
 freshInt :: InferConcrete Int
 freshInt = InferConcrete $ do

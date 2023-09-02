@@ -126,5 +126,5 @@ hindleyMilner e = do
   }
   where
     constrFromAction :: InferAction -> Maybe Constraint
-    constrFromAction (ActionConstrainEqual t1 t2) = Just $ Constraint t1 t2
+    constrFromAction (ActionConstrainEqual t1 t2) = Just $ ConstraintEqual t1 t2
     constrFromAction _ = Nothing
