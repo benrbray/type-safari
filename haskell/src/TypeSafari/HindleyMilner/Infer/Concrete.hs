@@ -2,7 +2,7 @@ module TypeSafari.HindleyMilner.Infer.Concrete where
 
 import Data.Map qualified as Map
 import Control.Monad.Writer
-import Control.Monad.Trans.RWS (RWST, evalRWST, ask, local, get, put)
+import Control.Monad.Trans.RWS (RWST (runRWST), ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Infer
@@ -22,8 +22,8 @@ newtype InferState = InferState {
   freshCounter :: Int
 }
 
-runConcrete :: InferConcrete Type -> Either TypeError (Type, [Constraint])
-runConcrete (InferConcrete m) = runExcept $ evalRWST m emptyTypeEnv initialState
+runConcrete :: InferConcrete Type -> Either TypeError (Type, InferState, [Constraint])
+runConcrete (InferConcrete m) = runExcept $ runRWST m emptyTypeEnv initialState
   where
     emptyTypeEnv = TypeEnv Map.empty
     initialState = InferState { freshCounter = 0 }
@@ -51,7 +51,11 @@ instance MonadTypeEnv InferConcrete where
 
 instance MonadConstraint InferConcrete where
   constrainEqual :: Type -> Type -> InferConcrete ()
-  constrainEqual t1 t2 = InferConcrete $ tell [ConstraintEqual t1 t2]
+  constrainEqual t1 t2 = InferConcrete $ tell [ConstrEqual t1 t2]
+
+  constrainImplicitInstance :: (Set MV) -> Type -> Type -> InferConcrete ()
+  constrainImplicitInstance monos t1 t2 =
+    InferConcrete $ tell [ConstrInstImplicit monos t1 t2]
 
 freshInt :: InferConcrete Int
 freshInt = InferConcrete $ do
@@ -77,16 +81,18 @@ instance MonadInfer InferConcrete where
   annot _ = pure
   visit :: Expr -> InferConcrete ()
   visit _ = pure ()
+
+instance MonadDebug InferConcrete where
   debug :: Text -> InferConcrete ()
   debug _ = pure ()
 
 ------------------------------------------------------------
 
 hindleyMilner :: (MonadInfer m) =>
-  (m Type -> Either TypeError (Type, [Constraint]))
+  (m Type -> Either TypeError (Type, InferState, [Constraint]))
   -> Expr
   -> Either TypeError Type
 hindleyMilner run e = do
-  (partialType, constrs) <- run $ infer e
-  subst <- solve constrs
+  (partialType, InferState { freshCounter }, constrs) <- run $ infer e
+  subst <- solve freshCounter constrs
   pure $ substMetaVars subst partialType

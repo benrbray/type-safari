@@ -7,8 +7,9 @@ module TypeSafari.HindleyMilner.Infer.Abstract (
 ) where
 
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Control.Monad.Writer
-import Control.Monad.Trans.RWS (RWST, evalRWST, ask, local, get, put)
+import Control.Monad.Trans.RWS (RWST (runRWST), ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Infer
@@ -18,6 +19,7 @@ import TypeSafari.Pretty (Pretty(..))
 
 data InferAction
   = ActionConstrainEqual Type Type
+  | ActionConstrainImplicitInstance (Set MV) Type Type
   | ActionInfer Expr
   | ActionAnnot Expr Type
   | ActionDebug Text
@@ -25,6 +27,8 @@ data InferAction
 
 instance Pretty InferAction where
   pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " === " <> (pretty t2)
+  pretty (ActionConstrainImplicitInstance monos t1 t2) =
+    "constrainImplicitInstance " <> show (pretty <$> Set.toList monos) <> " " <> (pretty t1) <> " <: " <> (pretty t2)
   pretty (ActionInfer e)              = "infer " <> pretty e
   pretty (ActionAnnot e t)            = "annot " <> pretty e <> " :: " <> pretty t
   pretty (ActionDebug e)              = "debug " <> e
@@ -44,8 +48,8 @@ newtype InferState = InferState {
   freshCounter :: Int
 }
 
-runAbstract :: InferAbstract Type -> Either TypeError (Type, [InferAction])
-runAbstract (InferAbstract m) = runExcept $ evalRWST m emptyTypeEnv initialState
+runAbstract :: InferAbstract Type -> Either TypeError (Type, InferState, [InferAction])
+runAbstract (InferAbstract m) = runExcept $ runRWST m emptyTypeEnv initialState
   where
     emptyTypeEnv = TypeEnv Map.empty
     initialState = InferState { freshCounter = 0 }
@@ -75,6 +79,10 @@ instance MonadConstraint InferAbstract where
   constrainEqual :: Type -> Type -> InferAbstract ()
   constrainEqual t1 t2 = InferAbstract $ tell [ActionConstrainEqual t1 t2]
 
+  constrainImplicitInstance :: (Set MV) -> Type -> Type -> InferAbstract ()
+  constrainImplicitInstance monos t1 t2 =
+    InferAbstract $ tell [ActionConstrainImplicitInstance monos t1 t2]
+
 freshInt :: InferAbstract Int
 freshInt = InferAbstract $ do
   InferState { freshCounter } <- get
@@ -102,6 +110,7 @@ instance MonadInfer InferAbstract where
     tell [ActionAnnot e t]
     pure t
 
+instance MonadDebug InferAbstract where
   debug :: Text -> InferAbstract()
   debug t = InferAbstract $ tell [ActionDebug t]
 
@@ -116,9 +125,9 @@ data Result = Result {
 
 hindleyMilner :: Expr -> Either TypeError Result
 hindleyMilner e = do
-  (partialType, actions) <- runAbstract $ infer e
+  (partialType, InferState { freshCounter }, actions) <- runAbstract $ infer e
   let constrs = mapMaybe constrFromAction actions
-  subst <- solve constrs
+  subst <- solve freshCounter constrs
   pure $ Result {
     resultType = substMetaVars subst partialType,
     resultSubst = subst,
@@ -126,5 +135,5 @@ hindleyMilner e = do
   }
   where
     constrFromAction :: InferAction -> Maybe Constraint
-    constrFromAction (ActionConstrainEqual t1 t2) = Just $ ConstraintEqual t1 t2
+    constrFromAction (ActionConstrainEqual t1 t2) = Just $ ConstrEqual t1 t2
     constrFromAction _ = Nothing

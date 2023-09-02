@@ -15,6 +15,7 @@ module TypeSafari.HindleyMilner.Infer (
   MonadTypeError (..),
   MonadFresh (..),
   MonadInfer (..),
+  MonadDebug (..),
   extend,
   infer,
   solve,
@@ -28,6 +29,9 @@ import Data.Set qualified as Set
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Pretty (Pretty (..), nl, sp)
 import TypeSafari.Core
+import GHC.IO (unsafePerformIO)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State (StateT, evalStateT, get, put)
 
 ---- types ---------------------------------------------------------------------
 
@@ -129,20 +133,23 @@ instance MetaVarSubst TypeEnv where
   freeMetaVars (TypeEnv env) = freeMetaVars $ Map.elems env
 
 instance MetaVarSubst Constraint where
-  substMetaVars s (ConstraintEqual t1 t2) =
-    ConstraintEqual (substMetaVars s t1) (substMetaVars s t2)
+  substMetaVars s (ConstrEqual t1 t2) =
+    ConstrEqual (substMetaVars s t1) (substMetaVars s t2)
   -- TODO: are the defs below correct?  are they required?
-  substMetaVars s (ConstraintExplicitInstance t sch) =
-    ConstraintExplicitInstance (substMetaVars s t) (substMetaVars s sch)
-  substMetaVars s (ConstraintImplicitInstance t1 t2) =
-    ConstraintImplicitInstance (substMetaVars s t1) (substMetaVars s t2)
+  substMetaVars s (ConstrInstExplicit t sch) =
+    ConstrInstExplicit (substMetaVars s t) (substMetaVars s sch)
+  -- TODO: need any substitutions for monos?
+  -- perhaps delete from @monos@ any metavars mentioned in the subst, since
+  -- they will no longer be present in the constrained types?
+  substMetaVars s (ConstrInstImplicit monos t1 t2) =
+    ConstrInstImplicit monos (substMetaVars s t1) (substMetaVars s t2)
 
-  freeMetaVars (ConstraintEqual t1 t2) =
+  freeMetaVars (ConstrEqual t1 t2) =
     (freeMetaVars t1) `Set.union` (freeMetaVars t2)
   -- TODO: are the defs below correct?  are they required?
-  freeMetaVars (ConstraintExplicitInstance t sch) =
+  freeMetaVars (ConstrInstExplicit t sch) =
     (freeMetaVars t) `Set.union` (freeMetaVars sch)
-  freeMetaVars (ConstraintImplicitInstance t1 t2) =
+  freeMetaVars (ConstrInstImplicit _monos t1 t2) =
     (freeMetaVars t1) `Set.union` (freeMetaVars t2)
 
 emptySubstMV :: SubstMV
@@ -187,16 +194,21 @@ data TypeError
 
 data Constraint
   -- | @t1 = t2@ means the types should be equal, after replacing metavariables.
-  = ConstraintEqual Type Type
+  = ConstrEqual Type Type
   -- | @t < σ@ means type @t@ should be an instance of type scheme @σ@, after
   -- replacing metavariables.  Useful if we know the type scheme of an expression
   -- before type inference begins.
-  | ConstraintExplicitInstance Type TypeScheme
-  -- | @t1 < t2@ means type @t1@ should be an instance of the type scheme
-  -- obtained by generalizing @t2@.  This records the fact that in general,
-  -- the (polymorphic) type of a declaration in a let-expression is unknown
-  -- and must be inferred before it can be instantiated.
-  | ConstraintImplicitInstance Type Type
+  | ConstrInstExplicit Type TypeScheme
+  -- | @t1 <(M)< t2@ means type @t1@ should be an instance of the type scheme
+  -- obtained by generalizing @t2@.  The set $M$ contains the names of
+  -- monomorphic type variables which should not be generalized over.  
+  --
+  -- As described by (Heeren 2002), this records the fact that in general, the
+  -- (polymorphic) type of a declaration in a let-expression is unknown and must
+  -- be inferred before it can be instantiated. Although there is no order in
+  -- the set of constraints, an implicit instance constraint requires some
+  -- constraints to be solved before it becomes solvable.
+  | ConstrInstImplicit (Set MV) Type Type
   deriving stock (Eq, Show)
 
 instance Pretty Type where
@@ -224,12 +236,12 @@ instance Pretty MV where
 
 instance Pretty Constraint where
   pretty :: Constraint -> Text
-  pretty (ConstraintEqual t1 t2) =
+  pretty (ConstrEqual t1 t2) =
     pretty t1 <> " === " <> pretty t2
-  pretty (ConstraintExplicitInstance t sch) =
+  pretty (ConstrInstExplicit t sch) =
     pretty t <> " :<: " <> pretty sch
-  pretty (ConstraintImplicitInstance t1 t2) =
-    pretty t1 <> " :<m<: " <> pretty t2
+  pretty (ConstrInstImplicit monos t1 t2) =
+    show (pretty <$> Set.toList monos) <> " " <> pretty t1 <> " :<m<: " <> pretty t2
 
 instance Pretty TypeError where
   pretty :: TypeError -> Text
@@ -265,19 +277,23 @@ class (Monad m) => MonadFresh m where
 class (Monad m) => MonadConstraint m where
   -- | Records a new unification constraint, to be solved later.
   constrainEqual :: Type -> Type -> m ()
+  constrainImplicitInstance :: (Set MV) -> Type -> Type -> m ()
 
-class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m) => MonadInfer m where
+class (Monad m) => MonadDebug m where
+  debug :: Text -> m ()
+  
+
+class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m, MonadDebug m) => MonadInfer m where
   -- | To be called each time an expression is visited during recursion.
   -- This is purely for debugging purposes, and should be pure for `InferConcrete`.
   -- TODO: Is there a recursion-schemes way to do this without having a typeclass?
   visit :: Expr -> m ()
   annot :: Expr -> Type -> m Type
-  debug :: Text -> m ()
 
 ---- generic operations built from primitives ----------------------------------
 
 -- | bind fresh metavars for each typevar mentioned in the forall
-instantiate :: MonadInfer m => TypeScheme -> m Type
+instantiate :: (MonadFresh m, MonadDebug m) => TypeScheme -> m Type
 instantiate t@(Forall as0 _) = do
   as1 <- traverse (const (TypeMetaVar <$> freshMetaVar)) as0
   let substTV = Map.fromList $ zip as0 as1
@@ -287,12 +303,37 @@ instantiate t@(Forall as0 _) = do
     Forall [] t2  -> return t2
     Forall _ _    -> error "impossible! instantiate should eliminate foralls"
 
+-- TODO: generalize was replaced with a constraint, delete / move it?
 -- | replace all free metavariables in a type
 -- with universally-quantified type variables
-generalize :: (MonadFresh m, MonadTypeEnv m) => Type -> m TypeScheme
-generalize t = do
+_generalize :: (MonadFresh m, MonadTypeEnv m) => Type -> m TypeScheme
+_generalize t = do
   env <- getTypeEnv
   let mv = Set.toList $ freeMetaVars t `Set.difference` freeMetaVars env
+  tv <- traverse (const freshTypeVar) mv
+  let substMV = Map.fromList $ zip mv (TypeVar <$> tv)
+  return $ Forall tv (substMetaVars substMV t)
+
+
+-- | Replace all free metavariables in a type with fresh universally-quantified
+-- type variables.  The set @monos@ is used to signal which metavariables should
+-- be *monomorphic*, i.e. not generalized.  For example, in
+--
+-- @let id = (\x -> let y = x in y) in ...@
+--
+-- a metavariable @mx@ is introduced for the term variable @x@ in the lambda.
+-- The type of the declaration for @id@ is polymorphic in @mx@, whereas the type
+-- of @y@ is monomorphic in @mx@.  Under Hindley-Milner, all lambda-bound term
+-- variables have monomorphic types which apply throughout the lambda expression.
+-- > (quoted from Herren 2002)
+--
+-- TODO (Ben @ 2023/09/02) Rather than being passed in, the @monos@ could be
+-- computed from the typing context at the point where the constraint is meant
+-- to hold.  To do this would require taking a snapshot of the typing context
+-- and storing it as part of the constraint.
+generalize :: (MonadFresh m) => Set MV -> Type -> m TypeScheme
+generalize monos t = do
+  let mv = Set.toList $ freeMetaVars t `Set.difference` monos
   tv <- traverse (const freshTypeVar) mv
   let substMV = Map.fromList $ zip mv (TypeVar <$> tv)
   return $ Forall tv (substMetaVars substMV t)
@@ -319,6 +360,7 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
     tv <- TypeMetaVar <$> freshMetaVar
     -- note: program vars bound by lambdas are given _monotypes_
     t  <- inLocalScope (x, Forall [] tv) (infer e)
+    -- TODO constrainEqual here, as in (Heeren2002)?
     return (tv `TypeArr` t)
 
   App efun earg -> do
@@ -330,9 +372,15 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
   Let x e1 e2 -> do
     -- let-generalization
-    te1 <- generalize =<< infer e1
-    debug $ pretty e1 <> " generalized to " <> pretty te1
-    te2 <- inLocalScope (x, te1) (infer e2)
+    te1 <- infer e1
+    mx  <- TypeMetaVar <$> freshMetaVar
+    te2 <- inLocalScope (x, Forall [] mx) (infer e2)
+
+    -- the type of x should be an instance of the type scheme
+    -- resulting from generalizing te1 with respect to its free variables
+    monos <- freeMetaVars <$> getTypeEnv -- TODO not sure if this is the correct mono set
+    constrainImplicitInstance monos mx te1
+
     return te2
 
   If econd etru efls -> do
@@ -366,37 +414,87 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
 ---- first-order unification ---------------------------------------------------
 
--- | A current candidate unifier, along with a set of yet-unsolved constraints.
--- Represents partial progress towards solving the unification problem.
-type PartialUnifier = (SubstMV, [Constraint])
+newtype Solve a
+  = Solve (ExceptT TypeError (Control.Monad.Trans.State.StateT Int Identity) a)
+  deriving newtype (Functor, Applicative, Monad)
 
-type Solve a = ExceptT TypeError Identity a
+instance MonadTypeError Solve where
+  throwTypeError :: forall a. TypeError -> Solve a
+  throwTypeError e = Solve $ throwError e
 
-runSolve :: Solve a -> Either TypeError a
-runSolve = runIdentity . runExceptT
+instance MonadDebug Solve where
+  debug :: Text -> Solve ()
+  debug t = Solve $ lift . lift $ Identity $ unsafePerformIO $ print t
 
-solve :: [Constraint] -> Either TypeError SubstMV
-solve = runSolve . solvePartial . (emptySubstMV,)
+-- TODO: make sure to seed the fresh name generator for Solve
+-- with whatever the final state of Infer was, so that fresh names
+-- generated unification do not clash with fresh names generated
+-- during constraint generation
+freshInt :: Solve Int
+freshInt = Solve $ do
+  freshCounter <- lift Control.Monad.Trans.State.get
+  let newValue = freshCounter + 1
+  lift $ Control.Monad.Trans.State.put newValue
+  return newValue
 
--- recursively solves 
-solvePartial :: PartialUnifier -> Solve SubstMV
-solvePartial (subst0, []) = pure subst0
-solvePartial (subst0, (ConstraintEqual t1 t2) : constrs) = do
+instance MonadFresh Solve where
+
+  freshMetaVar :: Solve MV
+  freshMetaVar = (MV . Fresh) <$> freshInt
+
+  freshTypeVar :: Solve TV
+  freshTypeVar = (TvBound . Fresh) <$> freshInt
+  
+-- TODO more gracefully pass freshCounter
+runSolve :: Int -> Solve a -> Either TypeError a
+runSolve freshCounter (Solve s) = runIdentity . (`Control.Monad.Trans.State.evalStateT` freshCounter) . runExceptT $ s
+
+solve :: Int -> [Constraint] -> Either TypeError SubstMV
+solve freshCounter = (runSolve freshCounter) . solveHeeren2002
+
+---- (Herren 2002, "Generalizing Hindley-Milner") ------------------------------
+
+activeVars :: Constraint -> Set MV
+activeVars (ConstrEqual t1 t2)         = freeMetaVars t1 `Set.union` freeMetaVars t2
+activeVars (ConstrInstExplicit t1 sch) = freeMetaVars t1 `Set.union` freeMetaVars sch
+activeVars (ConstrInstImplicit monos t1 t2)
+  -- TODO the paper writes @freeMetaVars(monos)@, but I'm not sure
+  -- what that could stand for other than @monos@ itself
+  = freeMetaVars t1 `Set.union` (monos `Set.intersection` freeMetaVars t2)
+
+activeVarsL :: [Constraint] -> Set MV
+activeVarsL = Set.unions . (activeVars <$>)
+
+solveHeeren2002 :: [Constraint] -> Solve SubstMV
+solveHeeren2002 [] = pure Map.empty
+solveHeeren2002 (ConstrEqual t1 t2 : constrs) = do
   subst1 <- unify t1 t2
-  solvePartial (subst1 `merge` subst0, substMetaVars subst1 constrs)
-solvePartial (subst0, (ConstraintExplicitInstance _ _) : constrs) = do
-  -- TODO
-  solvePartial (subst0, constrs)
-solvePartial (subst0, (ConstraintImplicitInstance _ _) : constrs) = do
-  -- TODO
-  solvePartial (subst0, constrs)
+  subst2 <- solveHeeren2002 $ substMetaVars subst1 constrs
+  return $ subst1 `merge` subst2
+solveHeeren2002 (c@(ConstrInstImplicit monos t1 t2) : constrs) = do
+  let freePolyMV = Set.difference (freeMetaVars t2) monos
+  let unsolvedActiveMV = activeVarsL constrs
+  if Set.disjoint freePolyMV unsolvedActiveMV
+    then do
+      -- convert implicit instance constraint into an
+      -- explicit instance constraint by generalizing t2
+      sch <- generalize monos t2
+      solveHeeren2002 (ConstrInstExplicit t1 sch : constrs)
+    else do
+      debug $ "postponing constraint: " <> pretty c
+      solveHeeren2002 (constrs ++ [c])
+solveHeeren2002 (ConstrInstExplicit t1 sch : constrs) = do
+  -- convert explicit instance constraint into an equality constraint
+  -- by instantiating new metavariables for the type scheme
+  t2 <- instantiate sch
+  solveHeeren2002 (ConstrEqual t1 t2 : constrs)
 
 -- to unify a lone metavariable @m@ with a type @t@, simply return
 -- the substitution @{ x <- t }@, provided that the occurs check passes
-unifyBind :: (MonadError TypeError m) => MV -> Type -> m SubstMV
+unifyBind :: (MonadTypeError m) => MV -> Type -> m SubstMV
 unifyBind x t
   | t == (TypeMetaVar x) = pure emptySubstMV
-  | occursCheck x t      = throwError $ InfiniteType x t
+  | occursCheck x t      = throwTypeError $ InfiniteType x t
   | otherwise            = return $ Map.singleton x t
   where
     -- returns @True@ whenever the type metavariable @x@ appears free in @t@
@@ -411,7 +509,7 @@ unify (TypeMetaVar x) t = unifyBind x t
 unify t (TypeMetaVar x) = unifyBind x t
 unify (TypeArr l1 r1) (TypeArr l2 r2) =
   unifyMany [l1, r1] [l2, r2]
-unify t1 t2 = throwError $ UnificationFail t1 t2
+unify t1 t2 = throwTypeError $ UnificationFail t1 t2
 
 unifyMany :: [Type] -> [Type] -> Solve SubstMV
 unifyMany [] [] = pure emptySubstMV
@@ -421,4 +519,4 @@ unifyMany (t1 : ts1) (t2 : ts2) =
 
     -- QUESTION: does the order of @merge@ matter here?
      return (subst1 `merge` subst2)
-unifyMany t1 t2 = throwError $ UnificationMismatch t1 t2
+unifyMany t1 t2 = throwTypeError $ UnificationMismatch t1 t2
