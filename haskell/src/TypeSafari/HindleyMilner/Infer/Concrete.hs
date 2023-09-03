@@ -22,11 +22,8 @@ newtype InferState = InferState {
   freshCounter :: Int
 }
 
-runConcrete :: InferConcrete Type -> Either TypeError (Type, InferState, [Constraint])
-runConcrete (InferConcrete m) = runExcept $ runRWST m emptyTypeEnv initialState
-  where
-    emptyTypeEnv = TypeEnv Map.empty
-    initialState = InferState { freshCounter = 0 }
+runConcrete :: forall a. TypeEnv -> InferState -> InferConcrete a -> Either TypeError (a, InferState, [Constraint])
+runConcrete env state (InferConcrete m) = runExcept $ runRWST m env state
 
 ------------------------------------------------------------
 
@@ -88,11 +85,15 @@ instance MonadDebug InferConcrete where
 
 ------------------------------------------------------------
 
-hindleyMilner :: (MonadInfer m) =>
-  (m Type -> Either TypeError (Type, InferState, [Constraint]))
-  -> Expr
-  -> Either TypeError Type
-hindleyMilner run e = do
-  (partialType, InferState { freshCounter }, constrs) <- run $ infer e
-  subst <- solve freshCounter constrs
+runSolve :: [Constraint] -> InferConcrete SubstMV
+runSolve constrs = do
+  solve constrs
+
+hindleyMilner :: Expr -> Either TypeError Type
+hindleyMilner e = do
+  (partialType, state1, constrs) <- runConcrete emptyTypeEnv state0 $ infer e
+  (subst,_,_) <- runConcrete emptyTypeEnv state1 $ runSolve constrs
   pure $ substMetaVars subst partialType
+  where
+    emptyTypeEnv = TypeEnv Map.empty
+    state0 = InferState { freshCounter = 0 }

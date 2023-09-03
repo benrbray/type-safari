@@ -13,7 +13,7 @@ import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
 import TypeSafari.HindleyMilner.Infer (Type)
 import TypeSafari.Pretty (Pretty(..))
-import TypeSafari.HindleyMilner.Infer.Concrete (runConcrete, hindleyMilner)
+import TypeSafari.HindleyMilner.Infer.Concrete (hindleyMilner)
 
 --------------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ data Output = Output {
 runHindleyMilner :: Input -> IO Output
 runHindleyMilner Input{..} = pure . fromEither $ do
   ParseResult { parsedExpr } <- mapLeft mkOutputParseError $ parse inputText
-  let run = hindleyMilner runConcrete parsedExpr
+  let run = hindleyMilner parsedExpr
   inferredType <- mapLeft (mkOutputTypeError parsedExpr . pretty) run
   pure $ mkOutput parsedExpr inferredType
 

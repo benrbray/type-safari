@@ -29,9 +29,6 @@ import Data.Set qualified as Set
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Pretty (Pretty (..), nl, sp)
 import TypeSafari.Core
-import GHC.IO (unsafePerformIO)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State (StateT, evalStateT, get, put)
 
 ---- types ---------------------------------------------------------------------
 
@@ -414,45 +411,18 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
 ---- first-order unification ---------------------------------------------------
 
-newtype Solve a
-  = Solve (ExceptT TypeError (Control.Monad.Trans.State.StateT Int Identity) a)
-  deriving newtype (Functor, Applicative, Monad)
+type MonadSolve m = (MonadTypeError m, MonadDebug m, MonadFresh m)
 
-instance MonadTypeError Solve where
-  throwTypeError :: forall a. TypeError -> Solve a
-  throwTypeError e = Solve $ throwError e
-
-instance MonadDebug Solve where
-  debug :: Text -> Solve ()
-  debug t = Solve $ lift . lift $ Identity $ unsafePerformIO $ print t
-
--- TODO: make sure to seed the fresh name generator for Solve
--- with whatever the final state of Infer was, so that fresh names
--- generated unification do not clash with fresh names generated
--- during constraint generation
-freshInt :: Solve Int
-freshInt = Solve $ do
-  freshCounter <- lift Control.Monad.Trans.State.get
-  let newValue = freshCounter + 1
-  lift $ Control.Monad.Trans.State.put newValue
-  return newValue
-
-instance MonadFresh Solve where
-
-  freshMetaVar :: Solve MV
-  freshMetaVar = (MV . Fresh) <$> freshInt
-
-  freshTypeVar :: Solve TV
-  freshTypeVar = (TvBound . Fresh) <$> freshInt
-  
 -- TODO more gracefully pass freshCounter
-runSolve :: Int -> Solve a -> Either TypeError a
-runSolve freshCounter (Solve s) = runIdentity . (`Control.Monad.Trans.State.evalStateT` freshCounter) . runExceptT $ s
+-- runSolve :: Int -> Solve a -> Either TypeError a
+-- runSolve freshCounter (Solve s) = runIdentity . (`Control.Monad.Trans.State.evalStateT` freshCounter) . runExceptT $ s
 
-solve :: Int -> [Constraint] -> Either TypeError SubstMV
-solve freshCounter = (runSolve freshCounter) . solveHeeren2002
+solve :: (MonadSolve m) => [Constraint] -> m SubstMV
+solve constrs = do
+  debug "UNIFICATION"
+  solveHeeren2002 constrs
 
----- (Herren 2002, "Generalizing Hindley-Milner") ------------------------------
+---- constraint solving --------------------------------------------------------
 
 activeVars :: Constraint -> Set MV
 activeVars (ConstrEqual t1 t2)         = freeMetaVars t1 `Set.union` freeMetaVars t2
@@ -465,7 +435,8 @@ activeVars (ConstrInstImplicit monos t1 t2)
 activeVarsL :: [Constraint] -> Set MV
 activeVarsL = Set.unions . (activeVars <$>)
 
-solveHeeren2002 :: [Constraint] -> Solve SubstMV
+-- Herren 2002, "Generalizing Hindley-Milner"
+solveHeeren2002 :: (MonadSolve m) => [Constraint] -> m SubstMV
 solveHeeren2002 [] = pure Map.empty
 solveHeeren2002 (ConstrEqual t1 t2 : constrs) = do
   subst1 <- unify t1 t2
@@ -479,6 +450,7 @@ solveHeeren2002 (c@(ConstrInstImplicit monos t1 t2) : constrs) = do
       -- convert implicit instance constraint into an
       -- explicit instance constraint by generalizing t2
       sch <- generalize monos t2
+      debug $ "generalized" <> pretty c <> " " <> pretty sch
       solveHeeren2002 (ConstrInstExplicit t1 sch : constrs)
     else do
       debug $ "postponing constraint: " <> pretty c
@@ -488,6 +460,8 @@ solveHeeren2002 (ConstrInstExplicit t1 sch : constrs) = do
   -- by instantiating new metavariables for the type scheme
   t2 <- instantiate sch
   solveHeeren2002 (ConstrEqual t1 t2 : constrs)
+
+---- first-order unification ---------------------------------------------------
 
 -- to unify a lone metavariable @m@ with a type @t@, simply return
 -- the substitution @{ x <- t }@, provided that the occurs check passes
@@ -502,7 +476,7 @@ unifyBind x t
     occursCheck :: MV -> Type -> Bool
     occursCheck y typ = y `Set.member` freeMetaVars typ
 
-unify :: Type -> Type -> Solve SubstMV
+unify :: (MonadSolve m) => Type -> Type -> m SubstMV
 unify t1 t2
   | t1 == t2 = pure emptySubstMV
 unify (TypeMetaVar x) t = unifyBind x t
@@ -511,7 +485,7 @@ unify (TypeArr l1 r1) (TypeArr l2 r2) =
   unifyMany [l1, r1] [l2, r2]
 unify t1 t2 = throwTypeError $ UnificationFail t1 t2
 
-unifyMany :: [Type] -> [Type] -> Solve SubstMV
+unifyMany :: (MonadSolve m) => [Type] -> [Type] -> m SubstMV
 unifyMany [] [] = pure emptySubstMV
 unifyMany (t1 : ts1) (t2 : ts2) =
   do subst1 <- unify t1 t2

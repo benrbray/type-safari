@@ -48,11 +48,8 @@ newtype InferState = InferState {
   freshCounter :: Int
 }
 
-runAbstract :: InferAbstract Type -> Either TypeError (Type, InferState, [InferAction])
-runAbstract (InferAbstract m) = runExcept $ runRWST m emptyTypeEnv initialState
-  where
-    emptyTypeEnv = TypeEnv Map.empty
-    initialState = InferState { freshCounter = 0 }
+runAbstract :: forall a. TypeEnv -> InferState -> InferAbstract a -> Either TypeError (a, InferState, [InferAction])
+runAbstract env state (InferAbstract m) = runExcept $ runRWST m env state
 
 ------------------------------------------------------------
 
@@ -123,17 +120,24 @@ data Result = Result {
   }
   deriving stock (Show)
 
+runSolve :: [Constraint] -> InferAbstract SubstMV
+runSolve constrs = do
+  solve constrs
+
 hindleyMilner :: Expr -> Either TypeError Result
 hindleyMilner e = do
-  (partialType, InferState { freshCounter }, actions) <- runAbstract $ infer e
-  let constrs = mapMaybe constrFromAction actions
-  subst <- solve freshCounter constrs
+  (partialType, state1, actionsInfer) <- runAbstract emptyTypeEnv state0 $ infer e
+  let constrs = mapMaybe constrFromAction actionsInfer
+  (subst, _, actionsSolve) <- runAbstract emptyTypeEnv state1 $ runSolve constrs
   pure $ Result {
     resultType = substMetaVars subst partialType,
     resultSubst = subst,
-    resultActions = actions
+    resultActions = actionsInfer ++ actionsSolve
   }
   where
     constrFromAction :: InferAction -> Maybe Constraint
     constrFromAction (ActionConstrainEqual t1 t2) = Just $ ConstrEqual t1 t2
     constrFromAction _ = Nothing
+
+    emptyTypeEnv = TypeEnv Map.empty
+    state0 = InferState { freshCounter = 0 }
