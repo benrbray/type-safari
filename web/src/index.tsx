@@ -127,10 +127,16 @@ const App = function () {
       <button class="btn" onClick={handleClick}>Parse</button>
     </div>
     <div class="bottom">
-      <pre class="resultExpr"><code>{resultExpr()}</code></pre>
       <pre class="resultType"><code>{resultType()}</code></pre>
-      <pre class="resultSubst"><code>{resultSubst()}</code></pre>
-      <pre class="resultActions"><code>{resultActions()}</code></pre>
+      <div class="bottom-split">
+        <div class="bottom-split-left">
+          <pre class="resultExpr"><code>{resultExpr()}</code></pre>
+        </div>
+        <div class="bottom-split-right">
+          <pre class="resultSubst"><code>{resultSubst()}</code></pre>
+          <pre class="resultActions"><code>{resultActions()}</code></pre>
+        </div>
+      </div>
     </div>
   </div>);
 }
