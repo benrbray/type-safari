@@ -62,12 +62,8 @@ freshInt = InferConcrete $ do
   return newValue
 
 instance MonadFresh InferConcrete where
-
   freshMetaVar :: InferConcrete MV
   freshMetaVar = (MV . Fresh) <$> freshInt
-
-  freshTypeVar :: InferConcrete TV
-  freshTypeVar = (TvBound . Fresh) <$> freshInt
 
 instance MonadTypeError InferConcrete where
   throwTypeError :: forall a. TypeError -> InferConcrete a

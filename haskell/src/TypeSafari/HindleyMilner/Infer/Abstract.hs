@@ -92,9 +92,6 @@ instance MonadFresh InferAbstract where
   freshMetaVar :: InferAbstract MV
   freshMetaVar = (MV . Fresh) <$> freshInt
 
-  freshTypeVar :: InferAbstract TV
-  freshTypeVar = (TvBound . Fresh) <$> freshInt
-
 instance MonadTypeError InferAbstract where
   throwTypeError :: forall a. TypeError -> InferAbstract a
   throwTypeError err = InferAbstract $ throwError err

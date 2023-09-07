@@ -27,21 +27,25 @@ module TypeSafari.HindleyMilner.Infer (
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import TypeSafari.HindleyMilner.Syntax
-import TypeSafari.Pretty (Pretty (..), nl, sp)
+import TypeSafari.Pretty (Pretty (..), nl)
 import TypeSafari.Core
+import Control.Monad.RWS (get, put)
+import Control.Monad.State (StateT, runStateT)
+import Control.Monad (replicateM)
 
 ---- types ---------------------------------------------------------------------
 
 -- | A concrete type variable.
-data TV
+newtype TV
   -- | Bound type variables are _always_ bound by an enclosing @ForAll@.
   --   * may appear in type annotations in a source program
-  --   * no well-formed @Type@ ever has a free @TvBound@. 
-  = TvBound Name
-  -- | Stands in for a constant, but unknown type.
+  --   * no well-formed @Type@ ever has a free @TvBound@.
+  --  Represented as de Bruijn indices, where n refers to the nth enclosing forall. 
+  = TvBound Int
+  -- Stands in for a constant, but unknown type.
   --   * never bound by a @forall@, and can be free in a `Type`.
   --   * the string is a hint used for documentation
-  | TvSkolem Int Text
+  -- TvSkolem Int Text
   deriving stock (Show, Eq, Ord)
 
 -- | A type metavariable is a placeholder for an unknown monotype.
@@ -62,7 +66,8 @@ data Type
 
 -- type scheme models polymorphic types
 data TypeScheme
-  = Forall [TV] Type
+  -- | binds @n@ type variables
+  = Forall Int Type
   deriving stock (Eq, Show)
 
 ---- type constants ------------------------------------------------------------
@@ -164,12 +169,37 @@ type SubstTV = Map TV Type
 class TypeVarSubst a where
   substTypeVars :: SubstTV -> a -> a
 
+lookupRenumber :: Int -> (Int -> Maybe Type) -> ([(TV, Type)], Int)
+lookupRenumber maxIdx f = (subst, numBound)
+  where
+    (subst, (_, numBound)) = runIdentity $ runStateT helper (0, 0)
+
+    helper :: StateT (Int, Int) Identity [(TV, Type)]
+    helper = do
+      (idx, ctr) <- get
+      if idx == maxIdx
+        then pure []
+        else 
+          case f idx of
+            Nothing -> do
+              let sub = (TvBound idx, TypeVar . TvBound $ ctr)
+              put (idx + 1, ctr + 1)
+              (sub : ) <$> helper
+            Just t  -> do
+              let sub = (TvBound idx, t)
+              put (idx + 1, ctr)
+              (sub :) <$> helper
+
 instance TypeVarSubst TypeScheme where
   substTypeVars :: SubstTV -> TypeScheme -> TypeScheme
-  substTypeVars s0 (Forall tv0 t) = Forall tv1 (substTypeVars s0 t)
+  substTypeVars s0 (Forall k0 t) = Forall numBound (substTypeVars s1 t)
     where
       -- keep any forall-bound type variables not mentioned in the subst
-      tv1 = Set.toList $ Set.difference (Set.fromList tv0) (Map.keysSet s0)
+      -- To avoid "gaps" in the de Bruijn indices we must renumber _all_
+      -- type variables bound by the forall
+      (renum, numBound) = lookupRenumber k0 (\k -> Map.lookup (TvBound k) s0)
+      s1 = Map.fromList renum
+      -- tv1 = Set.toList $ Set.difference (Set.fromList tv0) (Map.keysSet s0)
 
 instance TypeVarSubst Type where
   -- TODO (Ben @ 2023/08/30) address https://github.com/sdiehl/write-you-a-haskell/issues/116
@@ -217,14 +247,12 @@ instance Pretty Type where
 
 instance Pretty TypeScheme where
   pretty :: TypeScheme -> Text
-  pretty (Forall [] t) = pretty t
-  pretty (Forall tvs t) = "∀" <> (foldl1 sp (pretty <$> tvs)) <> ". " <> pretty t
+  pretty (Forall 0 t) = pretty t
+  pretty (Forall k t) = "∀" <> show k <> ". " <> pretty t
 
 instance Pretty TV where
   pretty :: TV -> Text
-  pretty (TvBound (Name t)) = t
-  pretty (TvBound (Fresh k)) = "#" <> show k
-  pretty (TvSkolem k s) = "S" <> show k <> "(" <> s <> ")"
+  pretty (TvBound k) = show k
 
 instance Pretty MV where
   pretty :: MV -> Text
@@ -269,7 +297,6 @@ class (Monad m) => MonadTypeEnv m where
 class (Monad m) => MonadFresh m where
   -- | Generate a fresh type metavariable.
   freshMetaVar :: m MV
-  freshTypeVar :: m TV
 
 class (Monad m) => MonadConstraint m where
   -- | Records a new unification constraint, to be solved later.
@@ -291,26 +318,14 @@ class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m, MonadD
 
 -- | bind fresh metavars for each typevar mentioned in the forall
 instantiate :: (MonadFresh m, MonadDebug m) => TypeScheme -> m Type
-instantiate t@(Forall as0 _) = do
-  as1 <- traverse (const (TypeMetaVar <$> freshMetaVar)) as0
-  let substTV = Map.fromList $ zip as0 as1
+instantiate t@(Forall k _) = do
+  mvs <- replicateM k (TypeMetaVar <$> freshMetaVar)
+  let substTV = Map.fromList $ zip (TvBound <$> [0..]) mvs
   let result = substTypeVars substTV t
   debug $ "instantiate\n  " <> pretty t <> "\n  " <> pretty result <> "\n"
   case result of
-    Forall [] t2  -> return t2
+    Forall 0 t2  -> return t2
     Forall _ _    -> error "impossible! instantiate should eliminate foralls"
-
--- TODO: generalize was replaced with a constraint, delete / move it?
--- | replace all free metavariables in a type
--- with universally-quantified type variables
-_generalize :: (MonadFresh m, MonadTypeEnv m) => Type -> m TypeScheme
-_generalize t = do
-  env <- getTypeEnv
-  let mv = Set.toList $ freeMetaVars t `Set.difference` freeMetaVars env
-  tv <- traverse (const freshTypeVar) mv
-  let substMV = Map.fromList $ zip mv (TypeVar <$> tv)
-  return $ Forall tv (substMetaVars substMV t)
-
 
 -- | Replace all free metavariables in a type with fresh universally-quantified
 -- type variables.  The set @monos@ is used to signal which metavariables should
@@ -330,12 +345,22 @@ _generalize t = do
 -- and storing it as part of the constraint.
 generalize :: (MonadFresh m) => Set MV -> Type -> m TypeScheme
 generalize monos t = do
-  let mv = Set.toList $ freeMetaVars t `Set.difference` monos
-  tv <- traverse (const freshTypeVar) mv
-  let substMV = Map.fromList $ zip mv (TypeVar <$> tv)
-  return $ Forall tv (substMetaVars substMV t)
+  let mv      = Set.toList $ freeMetaVars t `Set.difference` monos
+  let substMV = Map.fromList $ zip mv (TypeVar . TvBound <$> [0..])
+  return $ Forall (length mv) (substMetaVars substMV t)
 
 ---- constraint generation -----------------------------------------------------
+
+-- increment all de bruijn indices by one
+raise :: Expr -> Expr
+raise (App e1 e2)          = App (raise e1) (raise e2)
+raise (Lam x e0)           = Lam x (raise e0)
+raise (Let x e1 e2)        = Let x (raise e1) (raise e2)
+raise (If econd etru efls) = If (raise econd) (raise etru) (raise efls)
+raise (Fix e)              = Fix (raise e)
+raise (Op op e1 e2)        = Op op (raise e1) (raise e2) 
+raise e@(Var _)            = e
+raise e@(Lit _)            = e
 
 -- | generates equality constraints between types, in a bottom-up,
 -- manner to be solved by the unification engine later
@@ -356,7 +381,7 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
   Lam x e -> do
     tv <- TypeMetaVar <$> freshMetaVar
     -- note: program vars bound by lambdas are given _monotypes_
-    t  <- inLocalScope (x, Forall [] tv) (infer e)
+    t  <- inLocalScope (x, Forall 1 tv) (infer $ raise e)
     -- TODO constrainEqual here, as in (Heeren2002)?
     return (tv `TypeArr` t)
 
@@ -371,7 +396,7 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
     -- let-generalization
     te1 <- infer e1
     mx  <- TypeMetaVar <$> freshMetaVar
-    te2 <- inLocalScope (x, Forall [] mx) (infer e2)
+    te2 <- inLocalScope (x, Forall 0 mx) (infer e2)
 
     -- the type of x should be an instance of the type scheme
     -- resulting from generalizing te1 with respect to its free variables
