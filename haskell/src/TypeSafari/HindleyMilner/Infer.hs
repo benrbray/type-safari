@@ -26,6 +26,7 @@ module TypeSafari.HindleyMilner.Infer (
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import TypeSafari.HindleyMilner.Syntax
 import TypeSafari.Pretty (Pretty (..), nl)
 import TypeSafari.Core
@@ -445,6 +446,7 @@ type MonadSolve m = (MonadTypeError m, MonadDebug m, MonadFresh m)
 solve :: (MonadSolve m) => [Constraint] -> m SubstMV
 solve constrs = do
   debug "UNIFICATION"
+  debug $ "\n" <> Text.intercalate "\nconstraint" (pretty <$> constrs)
   solveHeeren2002 constrs
 
 ---- constraint solving --------------------------------------------------------

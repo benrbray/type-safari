@@ -115,7 +115,7 @@ const App = function () {
     setResultExpr(expr || "");
     setResultType(tp);
     setResultSubst(JSON.stringify(result.data.outputSubst, undefined, 2));
-    setResultActions(JSON.stringify(result.data.outputActions, undefined, 2));
+    setResultActions(result.data.outputActions?.join("\n") || "");
   }
 
   return (<div class="demo">

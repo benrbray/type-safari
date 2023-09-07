@@ -20,6 +20,7 @@ import TypeSafari.Pretty (Pretty(..))
 data InferAction
   = ActionConstrainEqual Type Type
   | ActionConstrainImplicitInstance (Set MV) Type Type
+  | ActionConstrainExplicitInstance Type TypeScheme
   | ActionInfer Expr
   | ActionAnnot Expr Type
   | ActionDebug Text
@@ -29,6 +30,8 @@ instance Pretty InferAction where
   pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " === " <> (pretty t2)
   pretty (ActionConstrainImplicitInstance monos t1 t2) =
     "constrainImplicitInstance " <> show (pretty <$> Set.toList monos) <> " " <> (pretty t1) <> " <: " <> (pretty t2)
+  pretty (ActionConstrainExplicitInstance t sch) =
+    "constrainExplicitInstance " <> (pretty t) <> " <: " <> (pretty sch)
   pretty (ActionInfer e)              = "infer " <> pretty e
   pretty (ActionAnnot e t)            = "annot " <> pretty e <> " :: " <> pretty t
   pretty (ActionDebug e)              = "debug " <> e
@@ -88,7 +91,6 @@ freshInt = InferAbstract $ do
   return newValue
 
 instance MonadFresh InferAbstract where
-
   freshMetaVar :: InferAbstract MV
   freshMetaVar = (MV . Fresh) <$> freshInt
 
@@ -117,15 +119,11 @@ data Result = Result {
   }
   deriving stock (Show)
 
-runSolve :: [Constraint] -> InferAbstract SubstMV
-runSolve constrs = do
-  solve constrs
-
 hindleyMilner :: Expr -> Either TypeError Result
 hindleyMilner e = do
   (partialType, state1, actionsInfer) <- runAbstract emptyTypeEnv state0 $ infer e
   let constrs = mapMaybe constrFromAction actionsInfer
-  (subst, _, actionsSolve) <- runAbstract emptyTypeEnv state1 $ runSolve constrs
+  (subst, _, actionsSolve) <- runAbstract emptyTypeEnv state1 $ solve constrs
   pure $ Result {
     resultType = substMetaVars subst partialType,
     resultSubst = subst,
@@ -134,7 +132,11 @@ hindleyMilner e = do
   where
     constrFromAction :: InferAction -> Maybe Constraint
     constrFromAction (ActionConstrainEqual t1 t2) = Just $ ConstrEqual t1 t2
-    constrFromAction _ = Nothing
+    constrFromAction (ActionConstrainImplicitInstance monos t1 t2) = Just $ ConstrInstImplicit monos t1 t2
+    constrFromAction (ActionConstrainExplicitInstance t sch) = Just $ ConstrInstExplicit t sch
+    constrFromAction (ActionInfer _ ) = Nothing
+    constrFromAction (ActionAnnot _ _) = Nothing
+    constrFromAction (ActionDebug _) = Nothing
 
     emptyTypeEnv = TypeEnv Map.empty
     state0 = InferState { freshCounter = 0 }
