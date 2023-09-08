@@ -100,6 +100,7 @@ const App = function () {
   const [resultType, setResultType] = createSignal<string>("");
   const [resultSubst, setResultSubst] = createSignal<string>("");
   const [resultActions, setResultActions] = createSignal<string>("");
+  const [resultConstraints, setResultConstraints] = createSignal<string[]>([]);
 
   const handleClick = async () => {
     const result = await workerApi.runInferAbstract(userText());
@@ -116,10 +117,13 @@ const App = function () {
     setResultType(tp);
     setResultSubst(JSON.stringify(result.data.outputSubst, undefined, 2));
     setResultActions(result.data.outputActions?.join("\n") || "");
+    setResultConstraints(result.data.outputConstraints || []);
   }
 
   return (<div class="demo">
     <h1>type-safari</h1>
+
+    <h2>Type Inference</h2>
     <div class="top">
       <textarea class="userTextInput" onChange={(evt) => {setUserText(evt.target.value)}} value={userText()} />
     </div>
@@ -138,6 +142,15 @@ const App = function () {
         </div>
       </div>
     </div>
+
+    <h2>Constraints</h2>
+
+    <div>
+    {resultConstraints()}
+    </div>
+
+    <h2>Instantiation</h2>
+
   </div>);
 }
 

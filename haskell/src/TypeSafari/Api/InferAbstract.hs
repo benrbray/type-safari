@@ -26,6 +26,7 @@ newtype Input = Input {
 data Output = Output {
     outputType :: Maybe Text,
     outputSubst :: Maybe (Map Text Text),
+    outputConstraints :: Maybe [Text],
     outputActions :: Maybe [Text],
     outputExpr :: Maybe Stx.Expr,
     outputError :: Maybe Text
@@ -46,6 +47,7 @@ mkOutputParseError err = Output {
     outputType = Nothing,
     outputExpr = Nothing,
     outputSubst = Nothing,
+    outputConstraints = Nothing,
     outputActions = Nothing,
     outputError = Just err
   }
@@ -55,6 +57,7 @@ mkOutputTypeError expr err = Output {
     outputType = Nothing,
     outputSubst = Nothing,
     outputActions = Nothing,
+    outputConstraints = Nothing,
     outputExpr = Just expr,
     outputError = Just err
   }
@@ -67,6 +70,7 @@ mkOutput e Result{..} = Output {
     outputType = Just $ pretty resultType,
     outputExpr = Just e,
     outputSubst = Just $ mkSubst resultSubst,
+    outputConstraints = Just (pretty <$> resultConstrs),
     outputActions = Just $ pretty <$> resultActions,
     outputError = Nothing
   }
@@ -77,6 +81,7 @@ dispError t =
     outputType = Nothing,
     outputExpr = Nothing,
     outputSubst = Nothing,
+    outputConstraints = Nothing,
     outputActions = Nothing,
     outputError = Just t
   }

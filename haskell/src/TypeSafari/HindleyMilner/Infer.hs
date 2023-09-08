@@ -340,6 +340,12 @@ instantiate t@(Forall k _) = do
 -- variables have monomorphic types which apply throughout the lambda expression.
 -- > (quoted from Herren 2002)
 --
+-- Without taking the typing context into account, the @let@-expression above
+-- would be assigned the unsound type `forall a b. (a -> b)`.
+--
+-- TODO (Ben @ 2023/09/08) Implement "Efficient Level-Based Generalization",
+-- discovered by Remy and explained by [Okmij](https://okmij.org/ftp/ML/generalization.html).
+--
 -- TODO (Ben @ 2023/09/02) Rather than being passed in, the @monos@ could be
 -- computed from the typing context at the point where the constraint is meant
 -- to hold.  To do this would require taking a snapshot of the typing context

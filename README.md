@@ -3,7 +3,7 @@
 With this project, I aim to collect reference implementations of type inference algorithms, with particular emphasis on those features which are necessary for practical implementations, such as error reporting and incrementality.  
 
 * The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series, but it has already diverged substantially.
-* The name (and project) is inspired by Andras Kovacs' ["Elaboration Zoo"](https://github.com/AndrasKovacs/elaboration-zoo).  I briefly considered *Type Petting Zoo* for the name, but thought it might be a bit too silly :)
+* The name (and project) is inspired by Andrej Bauer and Matija Pretnar's ["Programming Language Zoo"](http://plzoo.andrej.com/) and Andras Kovacs' ["Elaboration Zoo"](https://github.com/AndrasKovacs/elaboration-zoo).  I briefly considered *Type Petting Zoo* for the name, but thought it might be a bit too silly :)
 
 ## Goals
 
@@ -35,3 +35,29 @@ Type Inference for Dependent Types
 * [ ] Calculus of Inductive Constructions
 * [ ] Bidirectional Type Inference
 * [ ] Higher-Order Unification, Pattern Unification
+
+## Uncategorized
+
+Here are some topics I hope to cover, but I'm not quite sure how/where they fit in:
+
+* interacttions between Hindley-Milner and subtyping
+  * subsumption, and Haskell's "simplified subsumption"
+  * Stephen Dolan's [Algebraic Subtyping](https://api.repository.cam.ac.uk/server/api/core/bitstreams/d50b4d1a-a688-46eb-bb4f-9f4e204d0f60/content)
+* ML's value restriction, and OCaml's relaxation of the value restriction
+
+
+## Resources
+
+Hindley-Milner
+
+* Ben Lynn, ["Hindley-Milner Type Inference (Outcoding Unix Geniuses)"](https://crypto.stanford.edu/~blynn/lambda/hm.html)
+* Okmij, ["How OCaml Type Checker Works -- or What Polymorphism and Garbage Collection Have in Common"](https://okmij.org/ftp/ML/generalization.html)
+  * explains Rémy's "efficient level-based generalization" [Rémy 1992, "Extension of ML Type System with a Sorted Equational Theory on Types"](http://gallium.inria.fr/~remy/ftp/eq-theory-on-types.pdf)
+* StackOverflow, ["What part of Hindley-Milner do you not understand?"](https://stackoverflow.com/questions/12532552/what-part-of-hindley-milner-do-you-not-understand/42034379#42034379)
+* Mark P. Jones, ["Typing Haskell in Haskell"](https://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
+
+Bidirectional Type-Checking
+
+* Pfenning 2004, ["Lecture Notes on Bidirectional Type-Checking"](https://www.cs.cmu.edu/~fp/courses/15312-f04/handouts/15-bidirectional.pdf)
+* Pierce & turner 2000, ["Local Type Inference"](https://www.cis.upenn.edu/~bcpierce/papers/lti-toplas.pdf)
+  * Type inference algorithms have not caught up with the development of type _systems_, because it is hard to guarantee completeness.  Instead, this paper presents a bidirectional _local type inference_ algorithm for _partial type inference_.

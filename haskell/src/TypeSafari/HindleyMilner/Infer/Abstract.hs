@@ -115,6 +115,7 @@ instance MonadDebug InferAbstract where
 data Result = Result {
     resultType :: Type,
     resultSubst :: SubstMV,
+    resultConstrs :: [Constraint],
     resultActions :: [InferAction]
   }
   deriving stock (Show)
@@ -127,6 +128,7 @@ hindleyMilner e = do
   pure $ Result {
     resultType = substMetaVars subst partialType,
     resultSubst = subst,
+    resultConstrs = constrs,
     resultActions = actionsInfer ++ actionsSolve
   }
   where
