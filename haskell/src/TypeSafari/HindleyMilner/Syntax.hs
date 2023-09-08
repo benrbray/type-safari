@@ -54,18 +54,18 @@ data Program
 ------------------------------------------------------------
 
 instance Pretty Lit where
-  pretty (LInt i) = show i
+  pretty (LInt i)  = show i
   pretty (LBool b) = show b
 
 instance Pretty Expr where
-  pretty (Var n) = pretty n
-  pretty (App e1 e2) = pretty e1 <> " " <> pretty e2
-  pretty (Lam n e) = "(λ" <> pretty n <> " → " <> pretty e <> ")"
-  pretty (Let n e1 e2) = "(let " <> pretty n <> " = " <> pretty e1 <> " in " <> pretty e2 <> ")"
-  pretty (Lit lit) = pretty lit
+  pretty (Var n)              = pretty n
+  pretty (App e1 e2)          = pretty e1 <> " " <> pretty e2
+  pretty (Lam n e)            = "(λ" <> pretty n <> " → " <> pretty e <> ")"
+  pretty (Let n e1 e2)        = "(let " <> pretty n <> " = " <> pretty e1 <> " in " <> pretty e2 <> ")"
+  pretty (Lit lit)            = pretty lit
   pretty (If econd etru efls) = "(if " <> pretty econd <> " then " <> pretty etru <> " else " <> pretty efls <> ")"
-  pretty (Fix _) = "???"
-  pretty (Op op e1 e2) = "(" <> pretty e1 <> " " <> pretty op <> " " <> pretty e2 <> ")"
+  pretty (Fix _)              = "???"
+  pretty (Op op e1 e2)        = "(" <> pretty e1 <> " " <> pretty op <> " " <> pretty e2 <> ")"
 
 ------------------------------------------------------------
 
