@@ -207,6 +207,7 @@ let parserWithMetadata = parser.configure({
       Identifier: t.variableName,
       BooleanLiteral: t.bool,
       StringLiteral: t.string,
+      IntLiteral: t.integer,
       LineComment: t.lineComment,
       "let": t.keyword,
       "in": t.keyword,
@@ -250,7 +251,8 @@ const customHighlight = HighlightStyle.define([
   {tag: tags.punctuation, color: "#444", fontWeight: "bold"},
   // {tag: tags.variableName, color: "#f00", fontStyle: "italic"},"foo" :: _
   {tag: tags.bool, color: "#088", fontStyle: "italic"},
-  {tag: tags.string, color: "#080" }
+  {tag: tags.string, color: "#080" },
+  {tag: tags.integer, color: "#99006e" }
 ]);
 
 let codeMirror: EditorView;

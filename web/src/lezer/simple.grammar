@@ -57,6 +57,7 @@ infixExpr {
 
 literal {
   boolean |
+  IntLiteral |
   StringLiteral
 }
 
@@ -87,6 +88,7 @@ boolean { @specialize[@name=BooleanLiteral]<UpperName, "True" | "False"> }
 
   Symbol { (symbol)+ }
 
+  IntLiteral { (digit)+ }
   StringLiteral { '"' (!["\\] | "\\" _)* '"' }
 
   LineComment { dashes ![\n]* }
