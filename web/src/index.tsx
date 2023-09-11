@@ -2,12 +2,16 @@
 import { render } from 'solid-js/web'
 import WasmWorker from "./worker/worker?url"
 
-// codemirror
-import { EditorView, basicSetup } from "codemirror"
-
 import './index.css'
-import { createSignal } from 'solid-js';
+import { createSignal, onMount } from 'solid-js';
 import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
+
+// lezer lang
+import { printTree } from './lezer/print-lezer-tree';
+import { parser } from "./lezer/lang.grammar"
+import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
+
+import AnsiColor from "ansi-to-html";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,33 +105,58 @@ const workerApi = {
 
 const root = document.getElementById('root');
 
-const TypeParse = () => {
-  const [userText, setUserText]     = createSignal<string>("");
-  const [resultType, setResultType] = createSignal<string>("");
+// const TypeParse = () => {
+//   const [userText, setUserText]     = createSignal<string>("");
+//   const [resultType, setResultType] = createSignal<string>("");
 
-  const handleChange = async (value: string) => {
-    console.log("change");
-    setUserText(value);
-    const result = await workerApi.runParseType(value);
-    setResultType(JSON.stringify(result.data.outputType || result.data.outputError));
-  }
+//   const handleChange = async (value: string) => {
+//     console.log("change");
+//     setUserText(value);
+//     const result = await workerApi.runParseType(value);
+//     setResultType(JSON.stringify(result.data.outputType || result.data.outputError));
+//   }
 
-  return <div>
-    <textarea onInput={(evt) => { console.log("foo") ; handleChange(evt.target.value)}} value={userText()}></textarea>
-    <div>{resultType()}</div>
-  </div>
-}
+//   return <div>
+//     <textarea onInput={(evt) => { console.log("foo") ; handleChange(evt.target.value)}} value={userText()}></textarea>
+//     <div>{resultType()}</div>
+//   </div>
+// }
 
 const App = function () {
-  const [userText, setUserText] = createSignal<string>("");
+  return (<div class="demo">
+    <h1>type-safari</h1>
+    
+    <h2>Type Inference</h2>
+    <TypeInference />
+  </div>);
+}
+
+////////////////////////////////////////////////////////////
+
+const TypeInference = () => {
   const [resultExpr, setResultExpr] = createSignal<string>("");
   const [resultType, setResultType] = createSignal<string>("");
   const [resultSubst, setResultSubst] = createSignal<string>("");
   const [resultActions, setResultActions] = createSignal<string>("");
   const [resultConstraints, setResultConstraints] = createSignal<string[]>([]);
 
+  const [foo, setFoo] = createSignal<string>("");
+
+  // solidJS only renders once, so an ordinary closure is
+  // enough to keep a mutable reference (with no reactivity)
+  let codeEditorApi: CodeEditorApi|null = null;
+
+  const ansiColor = new AnsiColor({ fg: "#000", newline: true });
+
   const handleClick = async () => {
-    const result = await workerApi.runInferAbstract(userText());
+    if(!codeEditorApi) { return; }
+
+    const text = codeEditorApi.getCurrentText();
+    const pretty = printTree(parser.parse(text), text);
+    console.log(pretty);
+    setFoo(pretty);
+  
+    const result = await workerApi.runInferAbstract(text);
 
     console.log("[main]", result);
 
@@ -147,21 +176,9 @@ const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
 
-    <div id="codeMirror"></div>
-    <button onClick={() => { 
-      const doc = codeMirror.state.doc.toString();
-      console.log(doc)
-      const pretty = printTree(parser.parse(doc), doc);
-      console.log(pretty)
-    }}>Show</button>
-
-    <h2>Type Parsing</h2>
-
-    <TypeParse />
-
     <h2>Type Inference</h2>
     <div class="top">
-      <textarea class="userTextInput" onChange={(evt) => {setUserText(evt.target.value)}} value={userText()} />
+      <CodeEditor onReady={(api) => { codeEditorApi = api }}/>
     </div>
     <div class="controls">
       <button class="btn" onClick={handleClick}>Parse</button>
@@ -179,111 +196,15 @@ const App = function () {
       </div>
     </div>
 
+    <div style={{ "font-family": "monospace"}} innerHTML={ansiColor.toHtml(foo())}></div>
+
     <h2>Constraints</h2>
 
     <div>
     {resultConstraints()}
     </div>
 
-    <h2>Instantiation</h2>
-
   </div>);
-}
-
-////////////////////////////////////////////////////////////
-
-import { parser } from "./lezer/simple.grammar"
-// import { parser } from "./lezer/binop.grammar"
-import { foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language"
-import { styleTags, tags as t, Tag as T } from "@lezer/highlight"
-
-const tagMetaVar = T.define(t.variableName);
-const tagTypeVar = T.define(t.variableName);
-const tagTermVar = T.define(t.variableName);
-
-let parserWithMetadata = parser.configure({
-  props: [
-    styleTags({
-      Identifier: t.variableName,
-      /* literals */
-      BooleanLiteral: t.bool,
-      StringLiteral: t.string,
-      IntLiteral: t.integer,
-      /* commends */
-      LineComment: t.lineComment,
-      /* operators */
-      ArithOp: t.arithmeticOperator,
-      CmpOp: t.compareOperator,
-      /* keywords */
-      "forall" : t.keyword,
-      "." : t.keyword,
-      "let": t.keyword,
-      "in": t.keyword,
-      "if": t.keyword,
-      "then": t.keyword,
-      "else": t.keyword,
-      "=": t.keyword,
-      "( )": t.paren,
-      Symbol: t.punctuation,
-      /* definitions */
-      Lambda: t.definitionKeyword,
-      LambdaArrow: t.definitionKeyword,
-      /* types */
-      TypeCon: t.typeName,
-    }),
-    indentNodeProp.add({
-      Application: context => context.column(context.node.from) + context.unit
-    }),
-    foldNodeProp.add({
-      Application: foldInside
-    })
-  ]
-})
-
-import {tags} from "@lezer/highlight"
-import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle } from "@codemirror/language"
-import { printTree } from './lezer/print-lezer-tree';
-
-export const exampleLanguage = LRLanguage.define({
-  parser: parserWithMetadata,
-  languageData: {
-    commentTokens: {line: ";"}
-  }
-})
-
-export const example = () => {
-  return new LanguageSupport(exampleLanguage)
-}
-
-const colorPrimary = "#4B69C6";
-
-const customHighlight = HighlightStyle.define([
-  {tag: tags.keyword, color: colorPrimary, fontWeight: "bold" },
-  {tag: tags.definitionKeyword, color: "#72009e", fontWeight: "bold" },
-  {tag: tags.comment, color: "#808080", fontStyle: "italic"},
-  {tag: tags.punctuation, color: "#444", fontWeight: "bold"},
-  // {tag: tags.variableName, color: "#f00", fontStyle: "italic"},"foo" :: _
-  {tag: tags.bool, color: "#088", fontStyle: "italic"},
-  {tag: tags.string, color: "#080" },
-  {tag: tags.integer, color: "#99006e" },
-  {tag: tags.arithmeticOperator, color: colorPrimary },
-  {tag: tags.compareOperator, color: colorPrimary },
-  /* types */
-  {tag: tags.typeName, color: "#a85800" },
-]);
-
-let codeMirror: EditorView;
-
-function makeCodeMirror() {
-  codeMirror = new EditorView({
-    doc: "-- compute |x|+1\nlet inc = (\\x -> x + 1) in\nlet abs = (\\x -> if x > 0 then x else -x) in\n(\\x -> inc (abs x))",
-    extensions: [
-      basicSetup,
-      example(),
-      syntaxHighlighting(customHighlight)
-    ],
-    parent: document.getElementById("codeMirror")!
-  });
 }
 
 ////////////////////////////////////////////////////////////
@@ -292,6 +213,4 @@ window.onload = function() {
   initWorker();
 
   render(() => <App />, root!);
-
-  makeCodeMirror();
 }

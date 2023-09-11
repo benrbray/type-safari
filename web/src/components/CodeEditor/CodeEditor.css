@@ -1,0 +1,5 @@
+.cm-editor { max-height: 20rem; }
+.cm-content, .cm-gutter { min-height: 10rem; }
+.cm-gutters { margin: 1px; height: 100%; }
+.cm-scroller { overflow: auto; }
+.cm-wrap { border: 1px solid silver }
