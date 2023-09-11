@@ -255,8 +255,10 @@ export const example = () => {
   return new LanguageSupport(exampleLanguage)
 }
 
+const colorPrimary = "#4B69C6";
+
 const customHighlight = HighlightStyle.define([
-  {tag: tags.keyword, color: "#4B69C6", fontWeight: "bold" },
+  {tag: tags.keyword, color: colorPrimary, fontWeight: "bold" },
   {tag: tags.definitionKeyword, color: "#72009e", fontWeight: "bold" },
   {tag: tags.comment, color: "#808080", fontStyle: "italic"},
   {tag: tags.punctuation, color: "#444", fontWeight: "bold"},
@@ -264,8 +266,8 @@ const customHighlight = HighlightStyle.define([
   {tag: tags.bool, color: "#088", fontStyle: "italic"},
   {tag: tags.string, color: "#080" },
   {tag: tags.integer, color: "#99006e" },
-  {tag: tags.arithmeticOperator, color: "#099" },
-  {tag: tags.compareOperator, color: "#994" },
+  {tag: tags.arithmeticOperator, color: colorPrimary },
+  {tag: tags.compareOperator, color: colorPrimary },
   /* types */
   {tag: tags.typeName, color: "#a85800" },
 ]);

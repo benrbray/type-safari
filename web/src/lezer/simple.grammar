@@ -1,4 +1,4 @@
-@top Program { type }
+@top Program { expr }
 
 @precedence {
   highprec,
@@ -14,6 +14,8 @@ kw<term>  { @specialize[@name={term}]<lowerIdent, term> }
 sym<term> { @specialize[@name={term}]<symbols, term> }
 
 parens<rule> { "(" rule ")" }
+
+arrow { sym<"->"> }
 
 /* ---- types ------------------------------------------- */
 
@@ -35,7 +37,7 @@ type {
   forall TypeVar+ ForallDot type
 }
 
-TypeArr { type !type sym<"->"> type }
+TypeArr { type !type arrow type }
 
 /* --- terms -------------------------------------------- */
 
@@ -51,7 +53,7 @@ expr {
 expr0 {
   LetExpr { kw<"let"> Decl kw<"in"> expr } |
   IfThenElse { kw<"if"> expr kw<"then"> expr kw<"else"> expr } |
-  Abs { lambda TermVar lambdaArrow expr } |
+  Abs { lambda TermVar LambdaArrow expr } |
   BinaryExpr |
   UnaryExpr |
   TermVar |
@@ -67,7 +69,7 @@ Decl {
 /* ---- lambda ---- */
 
 lambda      { @specialize[@name=Lambda]<symbols, "\\" | "λ"> }
-lambdaArrow { @specialize[@name=LambdaArrow]<symbols, "->">  }
+LambdaArrow { arrow }
 
 /* ---- application ---- */
 
