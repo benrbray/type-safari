@@ -2,6 +2,9 @@
 import { render } from 'solid-js/web'
 import WasmWorker from "./worker/worker?url"
 
+// codemirror
+import { EditorView, basicSetup } from "codemirror"
+
 import './index.css'
 import { createSignal } from 'solid-js';
 import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
@@ -81,6 +84,10 @@ const workerApi = {
     return callWorkerApi("runParse", { inputText });
   },
 
+  async runParseType(inputText: string) {
+    return callWorkerApi("runParseType", { inputText });
+  },
+
   async runInferAbstract(inputText: string) {
     return callWorkerApi("runInferAbstract", { inputText });
   },
@@ -92,7 +99,24 @@ const workerApi = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const root = document.getElementById('root')
+const root = document.getElementById('root');
+
+const TypeParse = () => {
+  const [userText, setUserText]     = createSignal<string>("");
+  const [resultType, setResultType] = createSignal<string>("");
+
+  const handleChange = async (value: string) => {
+    console.log("change");
+    setUserText(value);
+    const result = await workerApi.runParseType(value);
+    setResultType(JSON.stringify(result.data.outputType || result.data.outputError));
+  }
+
+  return <div>
+    <textarea onInput={(evt) => { console.log("foo") ; handleChange(evt.target.value)}} value={userText()}></textarea>
+    <div>{resultType()}</div>
+  </div>
+}
 
 const App = function () {
   const [userText, setUserText] = createSignal<string>("");
@@ -122,6 +146,18 @@ const App = function () {
 
   return (<div class="demo">
     <h1>type-safari</h1>
+
+    <div id="codeMirror"></div>
+    <button onClick={() => { 
+      const doc = codeMirror.state.doc.toString();
+      console.log(doc)
+      const pretty = printTree(parser.parse(doc), doc);
+      console.log(pretty)
+    }}>Show</button>
+
+    <h2>Type Parsing</h2>
+
+    <TypeParse />
 
     <h2>Type Inference</h2>
     <div class="top">
@@ -154,8 +190,89 @@ const App = function () {
   </div>);
 }
 
+////////////////////////////////////////////////////////////
+
+import { parser } from "./lezer/simple.grammar"
+import { foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language"
+import { styleTags, tags as t, Tag as T } from "@lezer/highlight"
+
+const tagMetaVar = T.define(t.variableName);
+const tagTypeVar = T.define(t.variableName);
+const tagTermVar = T.define(t.variableName);
+
+let parserWithMetadata = parser.configure({
+  props: [
+    styleTags({
+      lexpr: t.docComment,
+      Identifier: t.variableName,
+      BooleanLiteral: t.bool,
+      StringLiteral: t.string,
+      LineComment: t.lineComment,
+      "let": t.keyword,
+      "in": t.keyword,
+      "if": t.keyword,
+      "then": t.keyword,
+      "else": t.keyword,
+      "=": t.keyword,
+      "( )": t.paren,
+      Symbol: t.punctuation,
+      Lambda: t.definitionKeyword,
+      LambdaArrow: t.definitionKeyword
+    }),
+    indentNodeProp.add({
+      Application: context => context.column(context.node.from) + context.unit
+    }),
+    foldNodeProp.add({
+      Application: foldInside
+    })
+  ]
+})
+
+import {tags} from "@lezer/highlight"
+import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle } from "@codemirror/language"
+import { printTree } from './lezer/print-lezer-tree';
+
+export const exampleLanguage = LRLanguage.define({
+  parser: parserWithMetadata,
+  languageData: {
+    commentTokens: {line: ";"}
+  }
+})
+
+export const example = () => {
+  return new LanguageSupport(exampleLanguage)
+}
+
+const customHighlight = HighlightStyle.define([
+  {tag: tags.keyword, color: "#4B69C6", fontWeight: "bold" },
+  {tag: tags.definitionKeyword, color: "#72009e", fontWeight: "bold" },
+  {tag: tags.comment, color: "#808080", fontStyle: "italic"},
+  {tag: tags.punctuation, color: "#444", fontWeight: "bold"},
+  // {tag: tags.variableName, color: "#f00", fontStyle: "italic"},"foo" :: _
+  {tag: tags.bool, color: "#088", fontStyle: "italic"},
+  {tag: tags.string, color: "#080" }
+]);
+
+let codeMirror: EditorView;
+
+function makeCodeMirror() {
+  codeMirror = new EditorView({
+    doc: "-- compute |x|+1\nlet inc = (\\x -> x + 1) in\nlet abs = (\\x -> if x > 0 then x else -x) in\n(\\x -> inc (abs x))",
+    extensions: [
+      basicSetup,
+      example(),
+      syntaxHighlighting(customHighlight)
+    ],
+    parent: document.getElementById("codeMirror")!
+  });
+}
+
+////////////////////////////////////////////////////////////
+
 window.onload = function() {
   initWorker();
 
   render(() => <App />, root!);
+
+  makeCodeMirror();
 }

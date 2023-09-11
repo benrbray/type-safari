@@ -1,0 +1,101 @@
+@top Program { expr }
+
+@precedence {
+  letIn,
+  highprec
+  // exp @left
+}
+
+@skip { space | LineComment }
+
+/* ---- character sets ---------------------------------- */
+
+/* ---- types ------------------------------------------- */
+
+forall { sym<"∀"> | kw<"forall"> }
+
+Type { "_" }
+
+/* --- terms -------------------------------------------- */
+
+// expression with optional type annotation
+expr {
+  expr0 |
+  TypeAnn { expr0 (!highprec "::" Type) }
+}
+
+// expression, without type annotation
+expr0 {
+  LetExpr { kw<"let"> Decl kw<"in"> expr } |
+  IfThenElse { kw<"if"> expr kw<"then"> expr kw<"else"> expr } |
+  Abs { lambda Identifier lambdaArrow expr } |
+  Spine { "(" expr* ")" }
+  Identifier |
+  literal
+}
+
+Decl {
+  Identifier sym<"="> expr
+}
+
+kw<term>  { @specialize[@name={term}]<Identifier, term> }
+sym<term> { @specialize[@name={term}]<Symbol, term> }
+
+/* ---- lambda ---- */
+lambda { @specialize[@name=Lambda]<Symbol, "\\" | "λ"> }
+lambdaArrow { @specialize[@name=LambdaArrow]<Symbol, "->"> }
+
+
+ArithOp<expr> { expr }
+
+CompareOp<expr> { expr }
+
+infixExpr {
+  expr !exp infixOp infixExpr |
+  expr
+}
+
+literal {
+  boolean |
+  StringLiteral
+}
+
+boolean { @specialize[@name=BooleanLiteral]<UpperName, "True" | "False"> }
+
+/* ---- tokens ------------------------------------------ */
+
+@tokens {
+  underline {"_"}
+  digit { std.digit }
+  dashes {"--" ("-")*}
+  small { std.asciiLowercase | underline}
+  large { std.asciiUppercase }
+
+  symbol { "#" | "?" | "⋆" | "+" | "." | "/"
+           "<" | "=" | ">" | "@" | "-" |
+           "\\" | "λ" | "∀" }
+
+  identchar { (small | large | digit)* }
+
+  // infix operator symbols
+  infixOp { Symbol }
+
+  Identifier { small identchar }
+  MetaVar  { "?" identchar }
+
+  UpperName { large identchar }
+
+  Symbol { (symbol)+ }
+
+  StringLiteral { '"' (!["\\] | "\\" _)* '"' }
+
+  LineComment { dashes ![\n]* }
+
+  space { $[ \t\n\r]+ }
+
+  "(" ")"
+
+  @precedence { LineComment, Symbol } // resolve conflict between -- and -
+}
+
+@detectDelim
