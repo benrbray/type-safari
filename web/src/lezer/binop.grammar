@@ -1,0 +1,25 @@
+@top Program { expr }
+
+@skip { space | LineComment }
+
+@precedence {
+  exp @right
+}
+
+expr { Name | Number | BinaryExpr }
+
+binop { @specialize[@name=BinOp]<symbs, "+"|"-"|"*"|"/"> }
+
+BinaryExpr { expr !exp binop expr }
+
+@tokens {
+  space { @whitespace+ }
+  LineComment { "--" ![\n]* }
+  symb { "+"|"-"|"*"|"/" }
+  symbs { symb+ }
+
+  Name { @asciiLetter+ }
+  Number { @digit+ }
+
+  @precedence { LineComment, symbs }
+}

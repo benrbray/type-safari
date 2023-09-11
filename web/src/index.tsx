@@ -193,6 +193,7 @@ const App = function () {
 ////////////////////////////////////////////////////////////
 
 import { parser } from "./lezer/simple.grammar"
+// import { parser } from "./lezer/binop.grammar"
 import { foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language"
 import { styleTags, tags as t, Tag as T } from "@lezer/highlight"
 
@@ -203,12 +204,17 @@ const tagTermVar = T.define(t.variableName);
 let parserWithMetadata = parser.configure({
   props: [
     styleTags({
-      lexpr: t.docComment,
       Identifier: t.variableName,
+      /* literals */
       BooleanLiteral: t.bool,
       StringLiteral: t.string,
       IntLiteral: t.integer,
+      /* commends */
       LineComment: t.lineComment,
+      /* operators */
+      ArithOp: t.arithmeticOperator,
+      CmpOp: t.compareOperator,
+      /* keywords */
       "let": t.keyword,
       "in": t.keyword,
       "if": t.keyword,
@@ -217,6 +223,7 @@ let parserWithMetadata = parser.configure({
       "=": t.keyword,
       "( )": t.paren,
       Symbol: t.punctuation,
+      /* definitions */
       Lambda: t.definitionKeyword,
       LambdaArrow: t.definitionKeyword
     }),
@@ -252,7 +259,9 @@ const customHighlight = HighlightStyle.define([
   // {tag: tags.variableName, color: "#f00", fontStyle: "italic"},"foo" :: _
   {tag: tags.bool, color: "#088", fontStyle: "italic"},
   {tag: tags.string, color: "#080" },
-  {tag: tags.integer, color: "#99006e" }
+  {tag: tags.integer, color: "#99006e" },
+  {tag: tags.arithmeticOperator, color: "#099" },
+  {tag: tags.compareOperator, color: "#994" },
 ]);
 
 let codeMirror: EditorView;

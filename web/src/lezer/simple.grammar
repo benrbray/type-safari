@@ -2,8 +2,8 @@
 
 @precedence {
   letIn,
-  highprec
-  // exp @left
+  highprec,
+  exp @left
 }
 
 @skip { space | LineComment }
@@ -29,10 +29,14 @@ expr0 {
   LetExpr { kw<"let"> Decl kw<"in"> expr } |
   IfThenElse { kw<"if"> expr kw<"then"> expr kw<"else"> expr } |
   Abs { lambda Identifier lambdaArrow expr } |
-  Spine { "(" expr* ")" }
+  BinaryExpr |
+  UnaryExpr |
   Identifier |
-  literal
+  literal |
+  parens<expr>
 }
+
+parens<rule> { "(" rule ")" }
 
 Decl {
   Identifier sym<"="> expr
@@ -42,18 +46,22 @@ kw<term>  { @specialize[@name={term}]<Identifier, term> }
 sym<term> { @specialize[@name={term}]<Symbol, term> }
 
 /* ---- lambda ---- */
-lambda { @specialize[@name=Lambda]<Symbol, "\\" | "λ"> }
-lambdaArrow { @specialize[@name=LambdaArrow]<Symbol, "->"> }
 
+lambda      { @specialize[@name=Lambda]<Symbol, "\\" | "λ"> }
+lambdaArrow { @specialize[@name=LambdaArrow]<Symbol, "->">  }
 
-ArithOp<expr> { expr }
+/* ---- infix ---- */
 
-CompareOp<expr> { expr }
+plusOp    { @specialize[@name=ArithOp]<Symbol, "+"|"-"> }
+multOp    { @specialize[@name=ArithOp]<Symbol, "*"|"/"> }
+cmpOp   { @specialize[@name=CmpOp]<Symbol, ">"|">="|"<"|"<="> }
+binOp { plusOp | multOp | cmpOp }
 
-infixExpr {
-  expr !exp infixOp infixExpr |
-  expr
-}
+BinaryExpr { expr !exp binOp expr }
+
+UnaryExpr { plusOp expr }
+
+/* ---- literals ---- */
 
 literal {
   boolean |
@@ -61,7 +69,7 @@ literal {
   StringLiteral
 }
 
-boolean { @specialize[@name=BooleanLiteral]<UpperName, "True" | "False"> }
+boolean { @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> }
 
 /* ---- tokens ------------------------------------------ */
 
@@ -72,19 +80,14 @@ boolean { @specialize[@name=BooleanLiteral]<UpperName, "True" | "False"> }
   small { std.asciiLowercase | underline}
   large { std.asciiUppercase }
 
-  symbol { "#" | "?" | "⋆" | "+" | "." | "/"
+  symbol { "#" | "?" | "*" | "+" | "." | "/"
            "<" | "=" | ">" | "@" | "-" |
            "\\" | "λ" | "∀" }
 
   identchar { (small | large | digit)* }
 
-  // infix operator symbols
-  infixOp { Symbol }
-
   Identifier { small identchar }
-  MetaVar  { "?" identchar }
-
-  UpperName { large identchar }
+  upperIdent { large identchar }
 
   Symbol { (symbol)+ }
 
