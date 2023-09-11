@@ -13,6 +13,8 @@ import Data.Text qualified as T
 import Prelude
 
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
+import TypeSafari.HindleyMilner.Infer (Type(..), TV (TvBound), MV (MV))
+import TypeSafari.Pretty (Pretty(..))
 
 --------------------------------------------------------------------------------
 
@@ -34,6 +36,18 @@ _backslash = symbol "\\"
 
 _arrow :: Parser Text
 _arrow = symbol "->"
+
+_forall :: Parser Text
+_forall = symbol "forall"
+
+_forallUnicode :: Parser Text
+_forallUnicode = symbol "∀"
+
+_comma :: Parser Text
+_comma = symbol ","
+
+_questionMark :: Parser Text
+_questionMark = symbol "?"
 
 _let :: Parser Text
 _let = symbol "let"
@@ -83,18 +97,58 @@ nameP :: Parser Stx.Name
 nameP = nameP0 >>= check
   where
     nameP0 = T.pack <$> lexeme ((:) <$> MP.letterChar <*> MP.many MP.alphaNumChar <?> "variable")
-    reserved = ["let", "in", "if", "then", "else", "True", "False"]
     check :: Text -> Parser Stx.Name
     check s =
       if s `elem` reserved
-      then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
-      else return (Stx.Name s)
+        then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
+        else return (Stx.Name s)
+      where 
+        reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
 
 variableP :: Parser Stx.Expr
 variableP = MP.try $ Stx.Var <$> nameP
 
 parens :: Parser a -> Parser a
 parens = MP.between (symbol "(") (symbol ")")
+
+---- types -------------------------------------------------
+
+-- TODO: validate that type var is bound by a forall
+typeVarP :: Parser TV
+typeVarP = TvBound <$> (lexeme L.decimal) <?> "type variable"
+
+metaVarP :: Parser MV
+metaVarP = MV <$> (_questionMark *> nameP) <?> "metavariable"
+
+typeConstructorP :: Parser Type
+typeConstructorP = (do
+  (Stx.Name t) <- nameP
+  pure $ TypeCon t)  <?> "type constructor"
+
+typeP :: Parser Type
+typeP = MP.choice [
+    typeArrowP,
+    parens typeP,
+    TypeVar <$> typeVarP,
+    TypeMetaVar <$> metaVarP,
+    typeConstructorP
+  ]
+
+-- arithmetic expressions
+typeArrowP :: Parser Type
+typeArrowP = makeExprParser termP opTable
+  where
+    termP :: Parser Type
+    termP = MP.choice
+      [ parens typeP
+      , TypeVar <$> typeVarP
+      , TypeMetaVar <$> metaVarP
+      , typeConstructorP
+      ]
+    opTable :: [[Operator Parser Type]]
+    opTable = [ [ InfixR (TypeArr <$ _arrow) ] ]
+
+---- expressions -------------------------------------------
 
 letExprP :: Parser Stx.Expr
 letExprP =
@@ -173,3 +227,21 @@ parse t =
   case MP.runParser (exprP <* MP.eof) "[result]" t of
     Left peb -> Left . T.pack $ MP.errorBundlePretty peb
     Right x -> Right $ ParseResult x
+
+------------------------------------------------------------
+
+newtype ParseTypeResult = ParseTypeResult
+  { parsedType :: Type
+  } deriving stock (Show, Eq)
+
+parseType :: Text -> Either Text ParseTypeResult
+parseType t =
+  case MP.runParser (typeP <* MP.eof) "[result]" t of
+    Left peb -> Left . T.pack $ MP.errorBundlePretty peb
+    Right x -> Right $ ParseTypeResult x
+
+tryParse :: Pretty a => (Parser a) -> Text -> Text
+tryParse p t =
+  case MP.runParser (p <* MP.eof) "[test]" t of
+    Left peb -> (T.pack . MP.errorBundlePretty) peb
+    Right x -> pretty x

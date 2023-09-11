@@ -9,8 +9,8 @@ export type JsonOp = StringOp;
 
 export type WasmApi = {
 	// memory management
-	malloc(n: number): Ptr; // ???
-	free(ptr: Ptr): void; // ???
+	malloc(n: number): Ptr;
+	free(ptr: Ptr): void;
 	// StringWithLen operations
 	getString(ptr: Ptr): Ptr;
 	getStringLen(ptr: Ptr): number;
@@ -20,6 +20,7 @@ export type WasmApi = {
 	runToUpper: StringOp;
 	// type-safari
   runParse: JsonOp;
+  runParseType: JsonOp;
   runInferAbstract: JsonOp;
   runInferConcrete: JsonOp;
 }

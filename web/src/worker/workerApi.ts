@@ -13,6 +13,9 @@ export interface WorkerRequestData {
 	"runParse" : {
 		inputText: string
 	},
+	"runParseType" : {
+		inputText: string
+	},
 	"runInferAbstract" : {
 		inputText: string
 	},
@@ -39,7 +42,10 @@ export interface WorkerResultData {
 		result : string
 	},
 	"runParse" : {
-		outputExpr?: any|undefined
+		inputText: string
+	},
+	"runParseType" : {
+		outputType?: any|undefined
 		outputError?: string|undefined
 	},
 	"runInferAbstract" : {

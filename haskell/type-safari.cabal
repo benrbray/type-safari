@@ -27,7 +27,7 @@ common common
     -- -Wno-unused-packages
     -- -Wno-unused-binds
     -- -Wno-unused-local-binds
-    -- -Wno-unused-imports
+    -Wno-unused-imports
     -fhide-source-paths
     -freverse-errors
   default-extensions:
@@ -88,6 +88,7 @@ common common
 common type-safari
   other-modules:
     TypeSafari.Api.Parse
+    TypeSafari.Api.ParseType
     TypeSafari.Api.InferAbstract
     TypeSafari.Api.InferConcrete
     TypeSafari.Core
@@ -133,6 +134,7 @@ executable type-safari-wasm
     \,--export=runFibonacci\
     \,--export=runToUpper\
     \,--export=runParse\
+    \,--export=runParseType\
     \,--export=runInferAbstract\
     \,--export=runInferConcrete\
     \"

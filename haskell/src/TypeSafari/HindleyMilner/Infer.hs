@@ -27,7 +27,8 @@ module TypeSafari.HindleyMilner.Infer (
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import TypeSafari.HindleyMilner.Syntax
+import TypeSafari.HindleyMilner.Syntax (Name(..), Expr(..))
+import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.Pretty (Pretty (..), nl)
 import TypeSafari.Core
 import Control.Monad.RWS (get, put)
@@ -79,20 +80,20 @@ typeInt = TypeCon "Int"
 typeBool :: Type
 typeBool = TypeCon "Bool"
 
-ops :: Map.Map Binop Type
+ops :: Map.Map Stx.Binop Type
 ops = Map.fromList [
-      (Add, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
-    , (Mul, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
-    , (Sub, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
-    , (Eql, (typeInt `TypeArr` (typeInt `TypeArr` typeBool)))
+      (Stx.Add, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
+    , (Stx.Mul, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
+    , (Stx.Sub, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
+    , (Stx.Eql, (typeInt `TypeArr` (typeInt `TypeArr` typeBool)))
   ]
 
 ---- context -------------------------------------------------------------------
 
 newtype TypeEnv
-  = TypeEnv (Map Name TypeScheme)
+  = TypeEnv (Map Stx.Name TypeScheme)
 
-extend :: TypeEnv -> (Name, TypeScheme) -> TypeEnv
+extend :: TypeEnv -> (Stx.Name, TypeScheme) -> TypeEnv
 extend (TypeEnv env) (x, s) =
   if Map.member x env
     then error $ "duplicate element in type env: " ++ (show x)
@@ -359,7 +360,7 @@ generalize monos t = do
 ---- constraint generation -----------------------------------------------------
 
 -- increment all de bruijn indices by one
-raise :: Expr -> Expr
+raise :: Stx.Expr -> Stx.Expr
 raise (App e1 e2)          = App (raise e1) (raise e2)
 raise (Lam x e0)           = Lam x (raise e0)
 raise (Let x e1 e2)        = Let x (raise e1) (raise e2)
@@ -438,8 +439,8 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
     return tres
 
-  Lit (LInt _)  -> return typeInt
-  Lit (LBool _) -> return typeBool
+  Lit (Stx.LInt _)  -> return typeInt
+  Lit (Stx.LBool _) -> return typeBool
 
 ---- first-order unification ---------------------------------------------------
 
