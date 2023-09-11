@@ -11,7 +11,7 @@
 /* ---- general ----------------------------------------- */
 
 kw<term>  { @specialize[@name={term}]<Identifier, term> }
-sym<term> { @specialize[@name={term}]<Symbol, term> }
+sym<term> { @specialize[@name={term}]<symbols, term> }
 
 parens<rule> { "(" rule ")" }
 
@@ -50,8 +50,8 @@ Decl {
 
 /* ---- lambda ---- */
 
-lambda      { @specialize[@name=Lambda]<Symbol, "\\" | "λ"> }
-lambdaArrow { @specialize[@name=LambdaArrow]<Symbol, "->">  }
+lambda      { @specialize[@name=Lambda]<symbols, "\\" | "λ"> }
+lambdaArrow { @specialize[@name=LambdaArrow]<symbols, "->">  }
 
 /* ---- application ---- */
 
@@ -59,10 +59,10 @@ AppExpr { (Identifier|parens<expr>) (Identifier|parens<expr>|AppExpr) }
 
 /* ---- operators ---- */
 
-plusOp    { @specialize[@name=ArithOp]<Symbol, "+"|"-"> }
-multOp    { @specialize[@name=ArithOp]<Symbol, "*"|"/"> }
-cmpOp   { @specialize[@name=CmpOp]<Symbol, ">"|">="|"<"|"<="> }
-binOp { plusOp | multOp | cmpOp }
+plusOp { @specialize[@name=ArithOp]<symbols, "+"|"-"> }
+multOp { @specialize[@name=ArithOp]<symbols, "*"|"/"> }
+cmpOp  { @specialize[@name=CmpOp]<symbols, ">"|">="|"<"|"<="> }
+binOp  { plusOp | multOp | cmpOp }
 
 BinaryExpr { expr !exp binOp expr }
 
@@ -71,20 +71,20 @@ UnaryExpr { plusOp expr }
 /* ---- literals ---- */
 
 literal {
-  boolean |
+  @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> |
   IntLiteral |
   StringLiteral
 }
 
-boolean { @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> }
-
 /* ---- tokens ------------------------------------------ */
 
 @tokens {
+  /* characters */
   space { $[ \t\n\r]+ }
-  underline {"_"}
   digit { std.digit }
+  
   /* named identifiers */
+  underline {"_"}
   small { std.asciiLowercase | underline}
   large { std.asciiUppercase } 
   identchar { (small | large | digit)* }
@@ -92,11 +92,11 @@ boolean { @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> }
   upperIdent { large identchar }
   
   /* symbols */
-  symbol { "#" | "?" | "*" | "+" | "." | "/"
-  "<" | "=" | ">" | "@" | "-" |
-  "\\" | "λ" | "∀" }
-  
-  Symbol { (symbol)+ }
+  symbol { "+" | "-" | "*" | "/" |
+           "<" | ">" | "=" |
+           "#" | "?" | "@" |
+           "\\" | "λ" | "∀" }
+  symbols { (symbol)+ }
   
   /* literals */
   IntLiteral { (digit)+ }
@@ -107,7 +107,7 @@ boolean { @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> }
 
   "(" ")" // TODO is it necessary to keep these on same line?
 
-  @precedence { LineComment, Symbol } // resolve conflict between -- and -
+  @precedence { LineComment, symbols } // resolve conflict between -- and -
 }
 
 @detectDelim
