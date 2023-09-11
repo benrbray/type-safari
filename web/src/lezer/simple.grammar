@@ -8,13 +8,19 @@
 
 @skip { space | LineComment }
 
-/* ---- character sets ---------------------------------- */
+/* ---- general ----------------------------------------- */
+
+kw<term>  { @specialize[@name={term}]<Identifier, term> }
+sym<term> { @specialize[@name={term}]<Symbol, term> }
+
+parens<rule> { "(" rule ")" }
 
 /* ---- types ------------------------------------------- */
 
 forall { sym<"∀"> | kw<"forall"> }
 
 Type { "_" }
+
 
 /* --- terms -------------------------------------------- */
 
@@ -23,6 +29,7 @@ expr {
   expr0 |
   TypeAnn { expr0 (!highprec "::" Type) }
 }
+
 
 // expression, without type annotation
 expr0 {
@@ -33,24 +40,24 @@ expr0 {
   UnaryExpr |
   Identifier |
   literal |
+  AppExpr |
   parens<expr>
 }
-
-parens<rule> { "(" rule ")" }
 
 Decl {
   Identifier sym<"="> expr
 }
-
-kw<term>  { @specialize[@name={term}]<Identifier, term> }
-sym<term> { @specialize[@name={term}]<Symbol, term> }
 
 /* ---- lambda ---- */
 
 lambda      { @specialize[@name=Lambda]<Symbol, "\\" | "λ"> }
 lambdaArrow { @specialize[@name=LambdaArrow]<Symbol, "->">  }
 
-/* ---- infix ---- */
+/* ---- application ---- */
+
+AppExpr { (Identifier|parens<expr>) (Identifier|parens<expr>|AppExpr) }
+
+/* ---- operators ---- */
 
 plusOp    { @specialize[@name=ArithOp]<Symbol, "+"|"-"> }
 multOp    { @specialize[@name=ArithOp]<Symbol, "*"|"/"> }
@@ -74,31 +81,31 @@ boolean { @specialize[@name=BooleanLiteral]<upperIdent, "True" | "False"> }
 /* ---- tokens ------------------------------------------ */
 
 @tokens {
+  space { $[ \t\n\r]+ }
   underline {"_"}
   digit { std.digit }
-  dashes {"--" ("-")*}
+  /* named identifiers */
   small { std.asciiLowercase | underline}
-  large { std.asciiUppercase }
-
-  symbol { "#" | "?" | "*" | "+" | "." | "/"
-           "<" | "=" | ">" | "@" | "-" |
-           "\\" | "λ" | "∀" }
-
+  large { std.asciiUppercase } 
   identchar { (small | large | digit)* }
-
   Identifier { small identchar }
   upperIdent { large identchar }
-
+  
+  /* symbols */
+  symbol { "#" | "?" | "*" | "+" | "." | "/"
+  "<" | "=" | ">" | "@" | "-" |
+  "\\" | "λ" | "∀" }
+  
   Symbol { (symbol)+ }
-
+  
+  /* literals */
   IntLiteral { (digit)+ }
   StringLiteral { '"' (!["\\] | "\\" _)* '"' }
+  
+  /* comments */
+  LineComment { "--" ("-")* ![\n]* }
 
-  LineComment { dashes ![\n]* }
-
-  space { $[ \t\n\r]+ }
-
-  "(" ")"
+  "(" ")" // TODO is it necessary to keep these on same line?
 
   @precedence { LineComment, Symbol } // resolve conflict between -- and -
 }
