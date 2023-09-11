@@ -215,6 +215,8 @@ let parserWithMetadata = parser.configure({
       ArithOp: t.arithmeticOperator,
       CmpOp: t.compareOperator,
       /* keywords */
+      "forall" : t.keyword,
+      "." : t.keyword,
       "let": t.keyword,
       "in": t.keyword,
       "if": t.keyword,
@@ -225,7 +227,9 @@ let parserWithMetadata = parser.configure({
       Symbol: t.punctuation,
       /* definitions */
       Lambda: t.definitionKeyword,
-      LambdaArrow: t.definitionKeyword
+      LambdaArrow: t.definitionKeyword,
+      /* types */
+      TypeCon: t.typeName,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit
@@ -262,6 +266,8 @@ const customHighlight = HighlightStyle.define([
   {tag: tags.integer, color: "#99006e" },
   {tag: tags.arithmeticOperator, color: "#099" },
   {tag: tags.compareOperator, color: "#994" },
+  /* types */
+  {tag: tags.typeName, color: "#a85800" },
 ]);
 
 let codeMirror: EditorView;

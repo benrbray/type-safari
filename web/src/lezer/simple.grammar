@@ -17,19 +17,25 @@ parens<rule> { "(" rule ")" }
 
 /* ---- types ------------------------------------------- */
 
-forall { sym<"∀"> | kw<"forall"> }
+forall {
+  kw<"forall"> |
+  @specialize[@name="forall"]<symbols, "∀">
+}
+
+ForallDot { sym<"."> }
 
 TypeVar { lowerIdent }
+TypeCon { upperIdent }
 
 type {
   TypeVar |
+  TypeCon |
   TypeArr |
   parens<type> |
-  forall TypeVar+ sym<","> type
+  forall TypeVar+ ForallDot type
 }
 
 TypeArr { type !type sym<"->"> type }
-
 
 /* --- terms -------------------------------------------- */
 
