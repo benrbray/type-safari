@@ -17,12 +17,6 @@ instance Pretty Name where
   pretty (Name n) = n
   pretty (Fresh i) = "#" <> show i
 
-data Type
-  = TypeVar Name
-  | TypeMetaVar Name
-  | TypeArr Type Type
-  deriving stock (Show, Eq, Ord)
-
 data Expr
   = Var Name            -- variable
   | App Expr Expr       -- application
