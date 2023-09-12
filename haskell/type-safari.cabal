@@ -100,6 +100,8 @@ common type-safari
     TypeSafari.HindleyMilner.Parse
     TypeSafari.HindleyMilner.Syntax
     TypeSafari.Pretty
+    TypeSafari.Parse.Located
+    TypeSafari.RecursionSchemes.Mu
 
 -- haskell-language-server has trouble with the
 -- c-sources, so we include a separate stanza

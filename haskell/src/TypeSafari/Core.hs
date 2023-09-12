@@ -6,6 +6,7 @@ module TypeSafari.Core (
   module Data.Set,
   module Data.Map,
   module Data.Text,
+  module Control.Arrow,
   module Control.Monad.Except,
   toFst,
   toSnd
@@ -18,6 +19,7 @@ import Data.Functor.Identity
 import Data.Text (Text)
 import Data.Set (Set)
 import Data.Map (Map)
+import Control.Arrow((>>>))
 import Control.Monad.Except
 import GHC.Base (ap)
 
