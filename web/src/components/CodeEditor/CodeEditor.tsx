@@ -7,7 +7,8 @@ import "./CodeEditor.css"
 ////////////////////////////////////////////////////////////
 
 export interface CodeEditorProps {
-  onReady: (api: CodeEditorApi) => void 
+  onReady: (api: CodeEditorApi) => void,
+  children: string, // editor contents
 }
 
 export interface CodeEditorApi {
@@ -22,7 +23,7 @@ export const CodeEditor = (props: CodeEditorProps) => {
     if(!editorElt) { throw Error("editorElt not defined"); }
     
     const editor = new EditorView({
-      doc: "-- compute |x|+1\nlet inc = (\\x -> x + 1) in\nlet abs = (\\x -> if x > 0 then x else -x) in\n(\\x -> inc (abs x))",
+      doc: props.children,
       extensions: [
         basicSetup,
         langSupport(),

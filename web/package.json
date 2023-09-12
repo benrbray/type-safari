@@ -13,6 +13,7 @@
     "@lezer/lr": "^1.3.10",
     "ansi-to-html": "^0.7.2",
     "codemirror": "^6.0.1",
+    "dedent-js": "^1.0.1",
     "solid-js": "^1.7.8",
     "wasi-js": "^1.7.3"
   },

@@ -44,9 +44,11 @@ let parserWithMetadata = parser.configure({
       TypeCon: t.typeName,
     }),
     indentNodeProp.add({
+      // TODO (Ben @ 2023/09/12) handle indentatoin
       Application: context => context.column(context.node.from) + context.unit
     }),
     foldNodeProp.add({
+      // TODO (Ben @ 2023/09/12) handle folding
       Application: foldInside
     })
   ]

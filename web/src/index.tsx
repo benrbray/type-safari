@@ -3,7 +3,7 @@ import { render } from 'solid-js/web'
 import WasmWorker from "./worker/worker?url"
 
 import './index.css'
-import { createSignal, onMount } from 'solid-js';
+import { createSignal } from 'solid-js';
 import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
 // lezer lang
@@ -12,6 +12,7 @@ import { parser } from "./lezer/lang.grammar"
 import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 
 import AnsiColor from "ansi-to-html";
+import dedent from "dedent-js";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +179,14 @@ const TypeInference = () => {
 
     <h2>Type Inference</h2>
     <div class="top">
-      <CodeEditor onReady={(api) => { codeEditorApi = api }}/>
+      <CodeEditor onReady={(api) => { codeEditorApi = api }}>
+        {dedent(String.raw`
+          -- fails because lambda-bound variables are monomorphic under Hindley-Milner
+          let const = (\v -> \x -> v) in
+          let f = (\y -> if True then (y 1) else (y True) in
+          f const
+        `)}
+      </CodeEditor>
     </div>
     <div class="controls">
       <button class="btn" onClick={handleClick}>Parse</button>
