@@ -1,7 +1,13 @@
-import { langHighlight, langSupport } from '../../lezer/lang';
+// solid
 import { onMount } from 'solid-js';
-import { EditorView, basicSetup } from "codemirror"
 
+// codemirror
+import { langHighlight, langSupport } from '../../lezer/lang';
+import { EditorView, basicSetup } from "codemirror"
+import {showPanel, Panel} from "@codemirror/view"
+import { EditorState, StateField, StateEffect } from "@codemirror/state"
+
+// project
 import "./CodeEditor.css"
 
 ////////////////////////////////////////////////////////////
@@ -27,7 +33,8 @@ export const CodeEditor = (props: CodeEditorProps) => {
       extensions: [
         basicSetup,
         langSupport(),
-        langHighlight
+        langHighlight,
+        selectionPanelPlugin()
       ],
       parent: editorElt!
     });
@@ -38,4 +45,29 @@ export const CodeEditor = (props: CodeEditorProps) => {
   })
 
   return (<div ref={editorElt}></div>);
+}
+
+////////////////////////////////////////////////////////////
+
+function dispSelection(state: EditorState): string {
+  const { from, to } = state.selection.main;
+  return `(${from}, ${to})`;
+}
+
+function selectionPanel(view: EditorView): Panel {
+  let dom = document.createElement("div");
+  dom.textContent = dispSelection(view.state);
+
+  return {
+    dom,
+    update(update) {
+      if (update.selectionSet) {
+        dom.textContent = dispSelection(update.state)
+      }
+    }
+  }
+}
+
+function selectionPanelPlugin() {
+  return showPanel.of(selectionPanel);
 }
