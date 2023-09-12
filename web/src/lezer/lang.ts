@@ -15,7 +15,7 @@ const tagTermVar = T.define(tags.variableName);
 let parserWithMetadata = parser.configure({
   props: [
     styleTags({
-      Identifier: tags.variableName,
+      Identifier: tagTermVar,
       /* literals */
       BooleanLiteral: tags.bool,
       StringLiteral: tags.string,
@@ -77,7 +77,7 @@ const highlightStyle = HighlightStyle.define([
   {tag: tags.definitionKeyword, color: "#72009e", fontWeight: "bold" },
   {tag: tags.comment, color: "#808080", fontStyle: "italic"},
   {tag: tags.punctuation, color: "#444", fontWeight: "bold"},
-  // {tag: tags.variableName, color: "#f00", fontStyle: "italic"},
+  // {tag: tagTermVar, color: "#f00", fontStyle: "italic"},
   {tag: tags.bool, color: "#088", fontStyle: "italic"},
   {tag: tags.string, color: "#080" },
   {tag: tags.integer, color: "#99006e" },
