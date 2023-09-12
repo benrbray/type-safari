@@ -55,6 +55,8 @@ Hindley-Milner
   * explains Rémy's "efficient level-based generalization" [Rémy 1992, "Extension of ML Type System with a Sorted Equational Theory on Types"](http://gallium.inria.fr/~remy/ftp/eq-theory-on-types.pdf)
 * StackOverflow, ["What part of Hindley-Milner do you not understand?"](https://stackoverflow.com/questions/12532552/what-part-of-hindley-milner-do-you-not-understand/42034379#42034379)
 * Mark P. Jones, ["Typing Haskell in Haskell"](https://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
+* Brian McKenna 2013, ["Bottom-Up Type Annotation with the Cofree Comonad"](https://brianmckenna.org/blog/type_annotation_cofree)
+  * a partial implementation (missing let-generalization) of Heeren2002's constraint-based Hindley-Milner using `Cofree` to represent annotated AST
 
 Bidirectional Type-Checking
 
