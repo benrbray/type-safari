@@ -5,7 +5,7 @@ import { onMount } from 'solid-js';
 import { langHighlight, langSupport } from '../../lezer/lang';
 import { EditorView, basicSetup } from "codemirror"
 import {showPanel, Panel} from "@codemirror/view"
-import { EditorState, StateField, StateEffect } from "@codemirror/state"
+import { EditorState } from "@codemirror/state"
 
 // project
 import "./CodeEditor.css"
