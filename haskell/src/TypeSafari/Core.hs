@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Data.Set (Set)
 import Data.Map (Map)
 import Control.Monad.Except
+import GHC.Base (ap)
 
 ------------------------------------------------------------
 
