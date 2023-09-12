@@ -6,7 +6,9 @@ module TypeSafari.Core (
   module Data.Set,
   module Data.Map,
   module Data.Text,
-  module Control.Monad.Except
+  module Control.Monad.Except,
+  toFst,
+  toSnd
 ) where
 
 import Prelude hiding (Show, show)
@@ -17,3 +19,11 @@ import Data.Text (Text)
 import Data.Set (Set)
 import Data.Map (Map)
 import Control.Monad.Except
+
+------------------------------------------------------------
+
+toFst :: (a -> b) -> a -> (b,a)
+toFst = ((,) =<<)
+
+toSnd :: (a -> b) -> a -> (a,b)
+toSnd = ap (,)
