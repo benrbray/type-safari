@@ -184,14 +184,36 @@ const ParseExample = () => {
     }
   });
 
-  const subexprAt = (span: [number,number], node: Example.Expr): Example.Expr => {
-    if(node.tag === "Ident") {
-      return node;
-    } else if(node.tag === "BinExpr") {
-      if(contains(node.left.span, span))  { return subexprAt(span, node.left); }
-      if(contains(node.right.span, span)) { return subexprAt(span, node.right); }
+  const subExprs = (e: Example.Expr): [Example.Span, Example.Expr][] => {
+    if(e.tag === "BinExpr") {
+      return [
+        [e.left.span, e.left],
+        [e.right.span, e.right],
+      ];
+    } else if(e.tag === "LetExpr") {
+      return [
+        /* TODO Name is not an expr, so return what? */
+        [e.equal.span, e.equal],
+        [e.in.span, e.in],
+      ];
+    } else if(e.tag === "IfExpr") {
+      return [
+        [e.econ.span, e.econ],
+        [e.etru.span, e.etru],
+        [e.efls.span, e.efls]
+      ];
+    }
+    return [];
+  }
+
+  const subexprAt = (query: [number,number], node: Example.Expr): Example.Expr => {
+    for(let [nodeSpan, subNode] of subExprs(node)) {
+      if(contains(nodeSpan, query)) {
+        return subexprAt(query, subNode);
+      }
     }
 
+    // by default, return current node
     return node;
   }
 

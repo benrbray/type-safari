@@ -14,6 +14,7 @@ import Data.Void
 
 import Data.Aeson
 import Data.Aeson.Types hiding (Parser)
+import qualified TypeSafari.HindleyMilner.Syntax as Stx
 
 ------------------------------------------------------------
 
@@ -65,8 +66,11 @@ class HasSpan p m where
   withSpan = toFst getSpan
 
 instance HasSpan p (Expr (Span p)) where
-  getSpan (InF (Ident s _)) = s
+  getSpan (InF (Var s _)) = s
+  getSpan (InF (Lit s _)) = s
   getSpan (InF (BinExpr _ s _ _)) = s
+  getSpan (InF (LetExpr s _ _ _)) = s
+  getSpan (InF (IfExpr s _ _ _)) = s
 
 instance HasSpan PosOffset TextSpan where
   getSpan (TextSpan a b _) = Span (PosOffset a) (PosOffset b)
@@ -85,9 +89,21 @@ instance Pretty BinOp where
   pretty Mul = "*"
   pretty Div = "/"
 
+data Lit
+  = LInt Integer
+  | LBool Bool
+  deriving stock (Show, Eq, Ord)
+
+instance Pretty Lit where
+  pretty (LInt x) = show x
+  pretty (LBool b) = show b
+
 data ExprF s a
-  = Ident s Text
+  = Var s Stx.Name
+  | LetExpr s (s, Stx.Name) a a 
   | BinExpr BinOp s a a
+  | IfExpr s a a a
+  | Lit s Lit
   deriving stock (Functor)
 
 type Expr s = Mu (ExprF s)
@@ -103,10 +119,15 @@ instance ToJSON (Expr OffsetSpan) where
   toJSON = cata f
     where
       f :: ExprF OffsetSpan Value -> Value
-      f (Ident s t) = object [
-          "tag"  .= ("Ident" :: Text)
+      f (Var s t) = object [
+          "tag"  .= ("Var" :: Text)
         , "span" .= toJSON s
         , "name" .= t
+        ]
+      f (Lit s v) = object [
+          "tag"  .= ("Lit" :: Text)
+        , "span" .= toJSON s
+        , "value" .= pretty v
         ]
       f (BinExpr op s e1 e2) = object [
           "tag"   .= ("BinExpr" :: Text)
@@ -114,6 +135,23 @@ instance ToJSON (Expr OffsetSpan) where
         , "op"    .= pretty op
         , "left"  .= toJSON e1
         , "right" .= toJSON e2 
+        ]
+      f (LetExpr s (sx,x) e1 e2) = object [
+          "tag"   .= ("LetExpr" :: Text)
+        , "span"  .= toJSON s
+        , "name"  .= object [
+            "name" .= x,
+            "span" .= sx
+          ]
+        , "equal" .= toJSON e1
+        , "in"    .= toJSON e2
+        ]
+      f (IfExpr s econ etru efls) = object [
+          "tag"   .= ("IfExpr" :: Text)
+        , "span"  .= toJSON s
+        , "econ" .= toJSON econ
+        , "etru" .= toJSON etru
+        , "efls" .= toJSON efls
         ]
 
 type LocatedExpr = Expr OffsetSpan
@@ -126,50 +164,169 @@ prettyParen x = "(" <> pretty x <> ")"
 
 instance Pretty LocatedExpr where
   pretty :: LocatedExpr -> Text
-  pretty (InF (Ident s t)) = prettyWithSpan t s
+  pretty (InF (Var s t)) = prettyWithSpan t s
+  pretty (InF (Lit s v)) = prettyWithSpan v s
   pretty (InF (BinExpr op s e1 e2)) =
     (prettyWithSpan ("BinExpr" <> pretty op) s) <>
     " " <> prettyParen e1 <>
     " " <> prettyParen e2
-
-------------------------------------------------------------
-
-identP :: Parser (LocatedExpr)
-identP = do
-  (span, text) <- ident
-  pure $ InF $ Ident span text
-
-ident :: Parser (OffsetSpan, Text)
-ident = L.lexeme name >>= check
-  where
-    name :: Parser TextSpan
-    name = L.cons <$> MP.satisfy L.isAlpha <*> MP.takeWhileP Nothing L.isAlphaNum
-    reserved = ["fun", "forall", "Type"]
-    check :: TextSpan -> Parser (OffsetSpan, Text)
-    check ts@TextSpan{..} =
-      if tsText `elem` reserved
-      then fail $ "keyword " ++ show tsText ++ " cannot be used as a variable name"
-      else return (getSpan ts, tsText)
+  pretty (InF (LetExpr s (sx,x) e1 e2)) =
+    (prettyWithSpan ("LetExpr" :: Text) s) <>
+    " let " <> prettyWithSpan x sx <>
+    " = " <> prettyParen e1 <>
+    " in " <> prettyParen e2
+  pretty (InF (IfExpr s econ etru efls)) =
+    (prettyWithSpan ("IfExpr" :: Text) s) <>
+    " if "   <> prettyParen econ <>
+    " then " <> prettyParen etru <>
+    " else " <> prettyParen efls
 
 ------------------------------------------------------------
 
 parens :: Parser a -> Parser a
 parens = MP.between (L.symbol "(") (L.symbol ")")
 
+
+_backslash :: Parser TextSpan
+_backslash = L.symbol "\\"
+
+_arrow :: Parser TextSpan
+_arrow = L.symbol "->"
+
+_forall :: Parser TextSpan
+_forall = L.symbol "forall"
+
+_forallUnicode :: Parser TextSpan
+_forallUnicode = L.symbol "∀"
+
+_comma :: Parser TextSpan
+_comma = L.symbol ","
+
+_questionMark :: Parser TextSpan
+_questionMark = L.symbol "?"
+
+_let :: Parser TextSpan
+_let = L.symbol "let"
+
+_in :: Parser TextSpan
+_in = L.symbol "in"
+
+_if :: Parser TextSpan
+_if = L.symbol "if"
+
+_then :: Parser TextSpan
+_then = L.symbol "then"
+
+_else :: Parser TextSpan
+_else = L.symbol "else"
+
+_True :: Parser TextSpan
+_True = L.symbol "True"
+
+_False :: Parser TextSpan
+_False = L.symbol "False"
+
+_equal :: Parser TextSpan
+_equal = L.symbol "="
+
+_leftparen :: Parser TextSpan
+_leftparen = L.symbol "("
+
+_rightparen :: Parser TextSpan
+_rightparen = L.symbol ")"
+
+--------------------------------------------------------------------------------
+
+integerP :: Parser LocatedExpr
+integerP = InF <$> do
+  (s, val) <- L.lexeme L.decimal
+  pure $ Lit (getSpan s) (LInt val)
+
+boolP :: Parser LocatedExpr
+boolP = MP.choice [ mk True <$> _True, mk False <$> _False ]
+  where
+    mk :: Bool -> TextSpan -> LocatedExpr 
+    mk b s = InF $ Lit (getSpan s) (LBool b)
+
+------------------------------------------------------------
+
+variableP :: Parser (LocatedExpr)
+variableP = do
+  (span, text) <- ident
+  pure $ InF $ Var span (Stx.Name text)
+
+ident :: Parser (OffsetSpan, Text)
+ident = L.lexeme name >>= check
+  where
+    name :: Parser TextSpan
+    name = L.cons <$> MP.satisfy L.isAlpha <*> MP.takeWhileP Nothing L.isAlphaNum
+    reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
+    check :: TextSpan -> Parser (OffsetSpan, Text)
+    check ts@TextSpan{..} =
+      if tsText `elem` reserved
+      then fail $ "keyword " ++ show tsText ++ " cannot be used as a variable name"
+      else return (getSpan ts, tsText)
+
+nameP :: Parser (OffsetSpan, Stx.Name)
+nameP = do
+  (s, t) <- ident
+  return (s, Stx.Name t)
+
+---- expressions -------------------------------------------
+
+-- letExprP :: Parser LocatedExpr
+-- letExprP =
+--   InF <$> (LetExpr <$>
+--     (_let *> nameP) <*>
+--     (_equal *> simpleExprP) <*>
+--     (_in *> exprP))  MP.<?> "let"
+
+letExprP :: Parser LocatedExpr
+letExprP = (InF <$> do
+  Span p0 _ <- getSpan <$> _let
+  (sx, x) <- nameP
+  e1 <- (_equal *> simpleExprP)
+  e2 <- (_in *> exprP)
+  let Span _ p1 = getSpan e2
+  return $ LetExpr (Span p0 p1) (sx, x) e1 e2) MP.<?> "let"
+
+ifExprP :: Parser LocatedExpr
+ifExprP = (InF <$> do
+  Span p0 _ <- getSpan <$> _if
+  econ <- simpleExprP
+  etru <- _then *> simpleExprP
+  efls <- _else *> simpleExprP
+  let Span _ p1 = getSpan efls
+  return $ IfExpr (Span p0 p1) econ etru efls) MP.<?> "if-then-else"
+
+------------------------------------------------------------
+
 exprP :: Parser LocatedExpr
 exprP = MP.choice [
-    arithExprP,
-    identP
-  ]
+    letExprP,
+    ifExprP,
+    MP.try arithExprP,
+    boolP,
+    variableP
+  ] MP.<?> "expr"
+
+simpleExprP :: Parser LocatedExpr
+simpleExprP = MP.choice [
+    parens exprP,
+    MP.try arithExprP,
+    boolP,
+    integerP,
+    variableP
+  ] MP.<?> "simple expression"
 
 -- arithmetic expressions
 arithExprP :: Parser LocatedExpr
-arithExprP = makeExprParser termP opTable
+arithExprP = makeExprParser termP opTable MP.<?> "arithExpr"
   where
     termP :: Parser LocatedExpr
     termP = MP.choice
       [ parens exprP
-      , identP
+      , variableP
       ]
     opTable :: [[Operator Parser LocatedExpr]]
     opTable =
@@ -201,5 +358,5 @@ parse t =
   case result of
     Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
     Right expr -> Right $ ParseResult expr
-  where result = MP.runParser (arithExprP <* MP.eof) "[filename]" (L.textSpan t)
+  where result = MP.runParser (exprP <* MP.eof) "[filename]" (L.textSpan t)
         -- lines = map ( (1 +) . T.length ) $ T.lines t
