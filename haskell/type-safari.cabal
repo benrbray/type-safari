@@ -89,6 +89,7 @@ common type-safari
   other-modules:
     TypeSafari.Api.Parse
     TypeSafari.Api.ParseType
+    TypeSafari.Api.ParseExample
     TypeSafari.Api.InferAbstract
     TypeSafari.Api.InferConcrete
     TypeSafari.Core
@@ -101,6 +102,7 @@ common type-safari
     TypeSafari.HindleyMilner.Syntax
     TypeSafari.Pretty
     TypeSafari.Parse.Located
+    TypeSafari.Parse.Example
     TypeSafari.RecursionSchemes.Mu
 
 -- haskell-language-server has trouble with the
@@ -137,6 +139,7 @@ executable type-safari-wasm
     \,--export=runToUpper\
     \,--export=runParse\
     \,--export=runParseType\
+    \,--export=runParseExample\
     \,--export=runInferAbstract\
     \,--export=runInferConcrete\
     \"

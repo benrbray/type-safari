@@ -14,6 +14,10 @@ import Prelude
 class Pretty p where
   pretty :: p -> Text
 
+instance Pretty Text where
+  pretty :: Text -> Text
+  pretty = id
+
 instance Pretty a => Pretty [a] where
   pretty :: [a] -> Text
   pretty = foldr ((<>) . pretty) ""

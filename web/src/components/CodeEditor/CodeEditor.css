@@ -3,3 +3,5 @@
 .cm-gutters { margin: 1px; height: 100%; }
 .cm-scroller { overflow: auto; }
 .cm-wrap { border: 1px solid silver }
+
+.cm-underline { border-bottom: 2px solid red; }

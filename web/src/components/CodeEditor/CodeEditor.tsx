@@ -5,7 +5,7 @@ import { onMount } from 'solid-js';
 import { langHighlight, langSupport } from '../../lezer/lang';
 import { EditorView, basicSetup } from "codemirror"
 import {showPanel, Panel} from "@codemirror/view"
-import { EditorState } from "@codemirror/state"
+import { EditorState, Extension } from "@codemirror/state"
 
 // project
 import "./CodeEditor.css"
@@ -15,10 +15,11 @@ import "./CodeEditor.css"
 export interface CodeEditorProps {
   onReady: (api: CodeEditorApi) => void,
   children: string, // editor contents
+  extensions?: Extension[]
 }
 
 export interface CodeEditorApi {
-  getCurrentText: () => string 
+  getCurrentText: () => string,
 }
 
 export const CodeEditor = (props: CodeEditorProps) => {
@@ -34,7 +35,8 @@ export const CodeEditor = (props: CodeEditorProps) => {
         basicSetup,
         langSupport(),
         langHighlight,
-        selectionPanelPlugin()
+        selectionPanelPlugin(),
+        ...(props.extensions || [])
       ],
       parent: editorElt!
     });

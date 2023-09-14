@@ -4,7 +4,10 @@ import WasmWorker from "./worker/worker?url"
 
 import './index.css'
 import { createSignal } from 'solid-js';
-import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
+import { Example, OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
+
+// codemirror
+import { SelectionRange } from "@codemirror/state";
 
 // lezer lang
 import { printTree } from './lezer/print-lezer-tree';
@@ -13,6 +16,7 @@ import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 
 import AnsiColor from "ansi-to-html";
 import dedent from "dedent-js";
+import { parseTreePlugin } from './editor/ParseInfoPlugin';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +97,10 @@ const workerApi = {
     return callWorkerApi("runParseType", { inputText });
   },
 
+  async runParseExample(inputText: string) {
+    return callWorkerApi("runParseExample", { inputText });
+  },
+
   async runInferAbstract(inputText: string) {
     return callWorkerApi("runInferAbstract", { inputText });
   },
@@ -126,6 +134,8 @@ const root = document.getElementById('root');
 const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
+
+    <ParseExample />
     
     <h2>Type Inference</h2>
     <TypeInference />
@@ -133,6 +143,82 @@ const App = function () {
 }
 
 ////////////////////////////////////////////////////////////
+
+/** @returns `true` if span `a` contains span `b` */
+const contains = ([a1,a2]: Example.Span, [b1,b2]: Example.Span): boolean => {
+  return (b1 >= a1 && b2 <= a2);
+}
+
+const ParseExample = () => {
+  let codeEditorApi: CodeEditorApi|null = null;
+
+  const handleClick = async () => {
+    if(!codeEditorApi) { return; }
+    const text = codeEditorApi.getCurrentText();
+    const result = await workerApi.runParseExample(text);
+    console.log(result.data.outputExpr);
+  };
+
+  let docChanged: boolean = true;
+  let parseTree: Example.Expr|null = null;
+
+  const debounce = (delay: number, func: () => void): (() => void) => {
+    let timerId: number;
+    const debounced = () => {
+        clearTimeout(timerId);
+        timerId = setTimeout(() => { func(); }, delay);
+    };
+    return debounced;
+  }
+
+  const handleDocChanged = debounce(400, async () => {
+    if(!codeEditorApi) { return; }
+    const text = codeEditorApi.getCurrentText();
+    const result = await workerApi.runParseExample(text);
+
+    if(result.data.outputExpr) {
+      parseTree = result.data.outputExpr;
+    } else {
+      console.error(result.data.outputError);
+      parseTree = null;
+    }
+  });
+
+  const subexprAt = (span: [number,number], node: Example.Expr): Example.Expr => {
+    if(node.tag === "Ident") {
+      return node;
+    } else if(node.tag === "BinExpr") {
+      if(contains(node.left.span, span))  { return subexprAt(span, node.left); }
+      if(contains(node.right.span, span)) { return subexprAt(span, node.right); }
+    }
+
+    return node;
+  }
+
+  const infoAt = (selection: SelectionRange): Example.Expr|null => {
+    if(parseTree === null) { return null; }
+
+    const { from, to } = selection
+    console.log("selection", from, to);
+
+    return subexprAt([from,to], parseTree);
+  }
+
+  return (<>
+    <h2>Parse Example</h2>
+    <div class="top">
+      <CodeEditor
+        onReady={(api) => { codeEditorApi = api }}
+        extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
+      >
+        {dedent(String.raw`
+          example
+        `)}
+      </CodeEditor>
+      <button class="btn" onClick={handleClick}>Click Me</button>
+    </div>
+  </>);
+}
 
 const TypeInference = () => {
   const [resultExpr, setResultExpr] = createSignal<string>("");
@@ -174,10 +260,7 @@ const TypeInference = () => {
     setResultConstraints(result.data.outputConstraints || []);
   }
 
-  return (<div class="demo">
-    <h1>type-safari</h1>
-
-    <h2>Type Inference</h2>
+  return (<>
     <div class="top">
       <CodeEditor onReady={(api) => { codeEditorApi = api }}>
         {dedent(String.raw`
@@ -211,8 +294,7 @@ const TypeInference = () => {
     <div>
     {resultConstraints()}
     </div>
-
-  </div>);
+  </>);
 }
 
 ////////////////////////////////////////////////////////////

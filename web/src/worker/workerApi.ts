@@ -16,6 +16,9 @@ export interface WorkerRequestData {
 	"runParseType" : {
 		inputText: string
 	},
+	"runParseExample" : {
+		inputText: string
+	},
 	"runInferAbstract" : {
 		inputText: string
 	},
@@ -37,6 +40,14 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 
 /* ---- response ---------------------------------------- */
 
+export namespace Example {
+	export type Span    = [number, number];
+	export type HasSpan = { span : Span } 
+	export type Expr    = BinExpr | Ident;
+	export type Ident   = HasSpan & { tag: "Ident", name: string };
+	export type BinExpr = HasSpan & { tag: "BinExpr", op: string, left: Expr, right: Expr }
+}
+
 export interface WorkerResultData {
 	"toUpper" : {
 		result : string
@@ -46,6 +57,10 @@ export interface WorkerResultData {
 	},
 	"runParseType" : {
 		outputType?: any|undefined
+		outputError?: string|undefined
+	},
+	"runParseExample" : {
+		outputExpr?: Example.Expr|undefined
 		outputError?: string|undefined
 	},
 	"runInferAbstract" : {

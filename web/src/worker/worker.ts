@@ -57,15 +57,21 @@ async function main() {
 
 		console.log("received request from main", req);
 
-		     if(req.tag === "toUpper")  { runToUpper(haskell, req.data);            }
-		else if(req.tag === "runParse") { runJsonOp(haskell, "runParse", req.data); }
-		else if(req.tag === "runParseType") {
+		if(req.tag === "toUpper") {
+			runToUpper(haskell, req.data);
+		} else if(req.tag === "runParse") {
+			runJsonOp(haskell, "runParse", req.data);
+		} else if(req.tag === "runParseType") {
 			runJsonOp(haskell, "runParseType", req.data);
-		} else if(req.tag === "runInferAbstract")
-			{ runJsonOp(haskell, "runInferAbstract", req.data); }
-		else if(req.tag === "runInferConcrete")
-			{ runJsonOp(haskell, "runInferConcrete", req.data); }
-		else { respondUnknown(); }
+		} else if(req.tag === "runParseExample") {
+			runJsonOp(haskell, "runParseExample", req.data);
+		} else if(req.tag === "runInferAbstract") {
+			runJsonOp(haskell, "runInferAbstract", req.data);
+		} else if(req.tag === "runInferConcrete") {
+			runJsonOp(haskell, "runInferConcrete", req.data);
+		} else {
+			respondUnknown();
+		}
 	};
 
 	// send initial message indicating worker is ready

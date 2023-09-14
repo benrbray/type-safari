@@ -12,7 +12,7 @@ module TypeSafari.Core (
   toSnd
 ) where
 
-import Prelude hiding (Show, show)
+import Prelude hiding (Show, show, span)
 import Protolude (Show, show, catMaybes, mapMaybe)
 import Data.Either.Extra
 import Data.Functor.Identity
