@@ -43,7 +43,7 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 export namespace Example {
 	export type Span    = [number, number];
 	export type HasSpan = { span : Span } 
-	export type Expr    = Var | Lit | LetExpr | BinExpr | IfExpr;
+	export type Expr    = Var | Lit | LamExpr | LetExpr | BinExpr | IfExpr | App;
 
 	export type Var = HasSpan & { tag: "Var", name: string };
 	export type Lit   = HasSpan & { tag: "Lit", value: string };
@@ -55,6 +55,18 @@ export namespace Example {
 		name: { name: string, span: Span },
 		equal: Expr,
 		in: Expr
+	}
+
+	export type LamExpr = HasSpan & {
+		tag: "LamExpr",
+		name: { name: string, span: Span },
+		body: Expr,
+	}
+
+	export type App = HasSpan & {
+		tag: "App",
+		e1: Expr,
+		e2: Expr
 	}
 
 	export type IfExpr = HasSpan & {

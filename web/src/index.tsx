@@ -146,7 +146,7 @@ const App = function () {
 
 /** @returns `true` if span `a` contains span `b` */
 const contains = ([a1,a2]: Example.Span, [b1,b2]: Example.Span): boolean => {
-  return (b1 >= a1 && b2 <= a2);
+  return (b1 >= a1 && b2 < a2);
 }
 
 const ParseExample = () => {
@@ -196,11 +196,21 @@ const ParseExample = () => {
         [e.equal.span, e.equal],
         [e.in.span, e.in],
       ];
+    } else if(e.tag === "LamExpr") {
+      return [
+        /* TODO Name is not an expr, so return what? */
+        [e.body.span, e.body]
+      ];
     } else if(e.tag === "IfExpr") {
       return [
         [e.econ.span, e.econ],
         [e.etru.span, e.etru],
         [e.efls.span, e.efls]
+      ];
+    } else if(e.tag === "App") {
+      return [
+        [e.e1.span, e.e1],
+        [e.e2.span, e.e2]
       ];
     }
     return [];

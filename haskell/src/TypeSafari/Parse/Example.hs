@@ -70,7 +70,9 @@ instance HasSpan p (Expr (Span p)) where
   getSpan (InF (Lit s _)) = s
   getSpan (InF (BinExpr _ s _ _)) = s
   getSpan (InF (LetExpr s _ _ _)) = s
+  getSpan (InF (LamExpr s _ _)) = s
   getSpan (InF (IfExpr s _ _ _)) = s
+  getSpan (InF (App s _ _)) = s
 
 instance HasSpan PosOffset TextSpan where
   getSpan (TextSpan a b _) = Span (PosOffset a) (PosOffset b)
@@ -100,16 +102,15 @@ instance Pretty Lit where
 
 data ExprF s a
   = Var s Stx.Name
+  | Lit s Lit
+  | App s a a
+  | LamExpr s (s, Stx.Name) a
   | LetExpr s (s, Stx.Name) a a 
   | BinExpr BinOp s a a
   | IfExpr s a a a
-  | Lit s Lit
   deriving stock (Functor)
 
 type Expr s = Mu (ExprF s)
-
-foo :: Value
-foo = Number 6
 
 instance ToJSON (OffsetSpan) where
   toJSON (Span (PosOffset a) (PosOffset b)) =
@@ -136,6 +137,15 @@ instance ToJSON (Expr OffsetSpan) where
         , "left"  .= toJSON e1
         , "right" .= toJSON e2 
         ]
+      f (LamExpr s (sx,x) e) = object [
+          "tag"   .= ("LamExpr" :: Text)
+        , "span"  .= toJSON s
+        , "name"  .= object [
+            "name" .= x,
+            "span" .= sx
+          ]
+        , "body" .= toJSON e
+        ]
       f (LetExpr s (sx,x) e1 e2) = object [
           "tag"   .= ("LetExpr" :: Text)
         , "span"  .= toJSON s
@@ -152,6 +162,12 @@ instance ToJSON (Expr OffsetSpan) where
         , "econ" .= toJSON econ
         , "etru" .= toJSON etru
         , "efls" .= toJSON efls
+        ]
+      f (App s e1 e2) = object [
+          "tag"   .= ("App" :: Text)
+        , "span"  .= toJSON s
+        , "e1" .= toJSON e1
+        , "e2" .= toJSON e2
         ]
 
 type LocatedExpr = Expr OffsetSpan
@@ -175,11 +191,19 @@ instance Pretty LocatedExpr where
     " let " <> prettyWithSpan x sx <>
     " = " <> prettyParen e1 <>
     " in " <> prettyParen e2
+  pretty (InF (LamExpr s (sx,x) e)) =
+    (prettyWithSpan ("LetExpr" :: Text) s) <>
+    " λ" <> prettyWithSpan x sx <>
+    " -> " <> prettyParen e
   pretty (InF (IfExpr s econ etru efls)) =
     (prettyWithSpan ("IfExpr" :: Text) s) <>
     " if "   <> prettyParen econ <>
     " then " <> prettyParen etru <>
     " else " <> prettyParen efls
+  pretty (InF (App s e1 e2)) =
+    (prettyWithSpan ("IfExpr" :: Text) s) <>
+    " " <> prettyParen e1 <>
+    " " <> prettyParen e2
 
 ------------------------------------------------------------
 
@@ -299,12 +323,33 @@ ifExprP = (InF <$> do
   let Span _ p1 = getSpan efls
   return $ IfExpr (Span p0 p1) econ etru efls) MP.<?> "if-then-else"
 
+lamP :: Parser LocatedExpr
+lamP = (InF <$> do
+    Span p0 _ <- getSpan <$> _backslash
+    name <- nameP
+    body <- _arrow *> exprP
+    let Span _ p1 = getSpan body
+    return $ LamExpr (Span p0 p1) name body
+  ) MP.<?> "lambda"
+
+spineP :: Parser LocatedExpr
+-- spineP = foldl1 App <$> MP.some simpleExprP MP.<?> "spine"
+spineP = foldl1 go <$> MP.some simpleExprP MP.<?> "spine"
+  where
+    go :: LocatedExpr -> LocatedExpr -> LocatedExpr
+    go e1 e2 = InF $ App (Span p0 p1) e1 e2
+      where
+        Span p0 _ = getSpan e1
+        Span _ p1 = getSpan e2
+
 ------------------------------------------------------------
 
 exprP :: Parser LocatedExpr
 exprP = MP.choice [
+    MP.try spineP,
     letExprP,
     ifExprP,
+    lamP,
     MP.try arithExprP,
     boolP,
     variableP
