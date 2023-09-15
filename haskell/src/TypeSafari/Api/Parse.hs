@@ -21,10 +21,10 @@ newtype Input = Input {
   deriving anyclass FromJSON
 
 data Output = Output {
-    outputExpr :: Maybe Stx.Expr,
+    outputExpr :: Maybe LocatedExpr,
     outputError :: Maybe Text
   }
-  deriving stock (Show, Generic)
+  deriving stock (Generic)
   deriving anyclass ToJSON
 
 --------------------------------------------------------------------------------

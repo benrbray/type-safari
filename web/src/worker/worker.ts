@@ -63,12 +63,8 @@ async function main() {
 			runJsonOp(haskell, "runParse", req.data);
 		} else if(req.tag === "runParseType") {
 			runJsonOp(haskell, "runParseType", req.data);
-		} else if(req.tag === "runParseExample") {
-			runJsonOp(haskell, "runParseExample", req.data);
 		} else if(req.tag === "runInferAbstract") {
 			runJsonOp(haskell, "runInferAbstract", req.data);
-		} else if(req.tag === "runInferConcrete") {
-			runJsonOp(haskell, "runInferConcrete", req.data);
 		} else {
 			respondUnknown();
 		}

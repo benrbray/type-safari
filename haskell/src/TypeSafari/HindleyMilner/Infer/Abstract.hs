@@ -11,6 +11,7 @@ import Data.Set qualified as Set
 import Control.Monad.Writer
 import Control.Monad.Trans.RWS (RWST (runRWST), ask, local, get, put)
 import TypeSafari.HindleyMilner.Syntax
+    ( Expr0, Expr, Name(Fresh), forget, LocatedExpr )
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Infer
 import TypeSafari.Pretty (Pretty(..))
@@ -21,10 +22,9 @@ data InferAction
   = ActionConstrainEqual Type Type
   | ActionConstrainImplicitInstance (Set MV) Type Type
   | ActionConstrainExplicitInstance Type TypeScheme
-  | ActionInfer Expr
-  | ActionAnnot Expr Type
+  | ActionInfer Expr0
+  | ActionAnnot Expr0 Type
   | ActionDebug Text
-  deriving stock (Show)
 
 instance Pretty InferAction where
   pretty (ActionConstrainEqual t1 t2) = "constrainEqual " <> (pretty t1) <> " === " <> (pretty t2)
@@ -99,11 +99,11 @@ instance MonadTypeError InferAbstract where
   throwTypeError err = InferAbstract $ throwError err
 
 instance MonadInfer InferAbstract where
-  visit :: Expr -> InferAbstract ()
-  visit e = InferAbstract $ tell [ActionInfer e]
-  annot :: Expr -> Type -> InferAbstract Type
+  visit :: Expr s -> InferAbstract ()
+  visit e = InferAbstract $ tell [ActionInfer (forget e)]
+  annot :: Expr s -> Type -> InferAbstract Type
   annot e t = InferAbstract $ do
-    tell [ActionAnnot e t]
+    tell [ActionAnnot (forget e) t]
     pure t
 
 instance MonadDebug InferAbstract where
@@ -118,9 +118,8 @@ data Result = Result {
     resultConstrs :: [Constraint],
     resultActions :: [InferAction]
   }
-  deriving stock (Show)
 
-hindleyMilner :: Expr -> Either TypeError Result
+hindleyMilner :: LocatedExpr -> Either TypeError Result
 hindleyMilner e = do
   (partialType, state1, actionsInfer) <- runAbstract emptyTypeEnv state0 $ infer e
   let constrs = mapMaybe constrFromAction actionsInfer

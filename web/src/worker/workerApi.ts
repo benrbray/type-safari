@@ -16,13 +16,7 @@ export interface WorkerRequestData {
 	"runParseType" : {
 		inputText: string
 	},
-	"runParseExample" : {
-		inputText: string
-	},
 	"runInferAbstract" : {
-		inputText: string
-	},
-	"runInferConcrete" : {
 		inputText: string
 	}
 }
@@ -82,14 +76,11 @@ export interface WorkerResultData {
 		result : string
 	},
 	"runParse" : {
-		inputText: string
+		outputExpr?: Example.Expr|undefined
+		outputError?: string|undefined
 	},
 	"runParseType" : {
 		outputType?: any|undefined
-		outputError?: string|undefined
-	},
-	"runParseExample" : {
-		outputExpr?: Example.Expr|undefined
 		outputError?: string|undefined
 	},
 	"runInferAbstract" : {
@@ -100,11 +91,6 @@ export interface WorkerResultData {
 		outputSubst?: { [typeVar:string] : string }|undefined
 		outputActions?: string[] | undefined
 	},
-	"runInferConcrete" : {
-		outputExpr?: any|undefined
-		outputType?: any|undefined
-		outputError?: string|undefined
-	}
 }
 
 export interface WorkerResult<Op extends OpName> {

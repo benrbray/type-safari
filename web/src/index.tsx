@@ -97,17 +97,9 @@ const workerApi = {
     return callWorkerApi("runParseType", { inputText });
   },
 
-  async runParseExample(inputText: string) {
-    return callWorkerApi("runParseExample", { inputText });
-  },
-
   async runInferAbstract(inputText: string) {
     return callWorkerApi("runInferAbstract", { inputText });
   },
-
-  async runInferConcrete(inputText: string) {
-    return callWorkerApi("runInferConcrete", { inputText });
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,11 +147,10 @@ const ParseExample = () => {
   const handleClick = async () => {
     if(!codeEditorApi) { return; }
     const text = codeEditorApi.getCurrentText();
-    const result = await workerApi.runParseExample(text);
+    const result = await workerApi.runParse(text);
     console.log(result.data.outputExpr);
   };
 
-  let docChanged: boolean = true;
   let parseTree: Example.Expr|null = null;
 
   const debounce = (delay: number, func: () => void): (() => void) => {
@@ -174,7 +165,7 @@ const ParseExample = () => {
   const handleDocChanged = debounce(400, async () => {
     if(!codeEditorApi) { return; }
     const text = codeEditorApi.getCurrentText();
-    const result = await workerApi.runParseExample(text);
+    const result = await workerApi.runParse(text);
 
     if(result.data.outputExpr) {
       parseTree = result.data.outputExpr;
@@ -231,8 +222,6 @@ const ParseExample = () => {
     if(parseTree === null) { return null; }
 
     const { from, to } = selection
-    console.log("selection", from, to);
-
     return subexprAt([from,to], parseTree);
   }
 

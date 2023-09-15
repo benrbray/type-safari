@@ -21,7 +21,5 @@ export type WasmApi = {
 	// type-safari
   runParse: JsonOp;
   runParseType: JsonOp;
-  runParseExample: JsonOp;
   runInferAbstract: JsonOp;
-  runInferConcrete: JsonOp;
 }

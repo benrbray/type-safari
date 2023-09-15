@@ -9,7 +9,6 @@ module TypeSafari.Parse.Located
   ( CharWithPos(..)
   , TextSpan(..)
   , textSpan, textSpanFrom
-  , ExprWithSpan, ExprWithSpanF(..), WithSpan(..)
   , cons
   , lexeme, symbol, satisfy, name
   , decimal
@@ -46,8 +45,7 @@ import Data.Foldable ( Foldable(foldl') )
 
 -- yagi-lang
 import TypeSafari.Core
-import TypeSafari.RecursionSchemes.Mu
-import TypeSafari.Pretty (Pretty (..))
+import TypeSafari.Parse.Span (HasSpan (..), PosOffset(..), Span(..))
 
 ------------------------------------------------------------
 
@@ -65,6 +63,9 @@ data TextSpan = TextSpan
 instance IsString TextSpan where
   fromString :: String -> TextSpan
   fromString s = TextSpan 0 (length s) (T.pack s)
+
+instance HasSpan PosOffset TextSpan where
+  getSpan (TextSpan a b _) = Span (PosOffset a) (PosOffset b)
 
 data WithSpan a = WithSpan
   { spanStart :: Int
@@ -208,153 +209,8 @@ decimal_ = toSnd mkNum <$> digits
 
 ------------------------------------------------------------
 
-withSpan :: (Text -> a) -> TextSpan -> WithSpan a
-withSpan f (TextSpan a b t)
-  = WithSpan { spanStart = a, spanEnd = b, spanData = f t }
-
-------------------------------------------------------------
-
-data ExprF a
-  = FLeaf Text
-  | FNode a a
-  deriving stock (Eq, Show, Functor)
-
-newtype ExprWithSpanF a
-  = ExprWithSpanF (WithSpan (ExprF a))
-  deriving stock (Eq, Show, Functor)
-
-type ExprWithSpan = Mu ExprWithSpanF
-
-showSpan :: Int -> Int -> Text
-showSpan a b = "{" <> show a <> "," <> show b <> "}"
-
-showOneLayer :: Pretty a => WithSpan (ExprF a) -> Text
-showOneLayer (WithSpan a b (FLeaf t)) =  t <> showSpan a b
-showOneLayer (WithSpan a b (FNode tl tr)) = "(" <> pretty tl <> "," <> pretty tr <> ")" <> showSpan a b
-
-instance Pretty (Mu ExprWithSpanF) where
-  pretty (InF (ExprWithSpanF ws)) = showOneLayer ws
-
-exprWithSpan :: Int -> Int -> ExprF (Mu ExprWithSpanF) -> ExprWithSpan
-exprWithSpan a b e = InF $ ExprWithSpanF (WithSpan a b e)
-
-getSpan :: ExprWithSpan -> (Int,Int)
-getSpan (InF (ExprWithSpanF ws)) = (spanStart ws, spanEnd ws)
-
-------------------------------------------------------------
-
--- cons :: (CharWithPos, TextSpan) -> TextSpan
--- cons (CharWithPos a x, TextSpan b c t) = TextSpan a c (T.cons x t)
-
 cons :: CharWithPos -> TextSpan -> TextSpan
 cons (CharWithPos a x) (TextSpan _ c t) = TextSpan a c (T.cons x t)
 
 name :: Parser TextSpan
 name = cons <$> MP.satisfy isAlpha <*> MP.takeWhileP Nothing isAlphaNum
-
-pLeaf :: Parser ExprWithSpan
-pLeaf = go <$> name
-  where go :: TextSpan -> ExprWithSpan
-        go (TextSpan a b t) = exprWithSpan a b (FLeaf t)
-
-pNode :: Parser ExprWithSpan
-pNode = do
-  TextSpan a _ _ <- symbol "("
-  left <- pNode <|> pLeaf
-  _ <- symbol ","
-  right <- pNode <|> pLeaf
-  TextSpan _ b _ <- symbol ")"
-  return $ exprWithSpan a b (FNode left right)
-
-------------------------------------------------------------
-
-showExprF :: Pretty a => ExprF a -> Text
-showExprF (FLeaf t) = t
-showExprF (FNode tl tr) = "(" <> pretty tl <> "," <> pretty tr <> ")"
-
-instance Pretty (Mu ExprF) where
-  pretty (InF e) = showExprF e
-
-------------------------------------------------------------
-
--- type Result a = Mu (ResultF a)
--- data ResultF a b
---   = Done a
---   | Next b
---   deriving (Show, Eq, Functor)
-
--- pattern GetSpan x y e = InF (ExprWithSpanF (WithSpan x y e))
--- pattern GetExpr e <- InF (ExprWithSpanF (WithSpan _ _ e))
--- pattern GetLeaf t <- InF (ExprWithSpanF (WithSpan _ _ (FLeaf t)))
--- pattern GetNode l r <- InF (ExprWithSpanF (WithSpan _ _ (FNode l r)))
-
--- -- anamorphism
--- prune :: Int -> ExprWithSpan -> Result ExprWithSpan
--- prune v = ana go
---   where go :: ExprWithSpan -> ResultF ExprWithSpan ExprWithSpan
---         go (GetNode l r)
---           | la <= v && v < lb = Next l
---           | ra <= v && v < rb = Next r
---           where GetSpan la lb _ = l
---                 GetSpan ra rb _ = r
---         go expr = Done expr
-
--- -- catamorphism
--- finish :: Result ExprWithSpan -> ExprWithSpan
--- finish = cata go
---   where go :: ResultF ExprWithSpan ExprWithSpan -> ExprWithSpan
---         go (Done e) = e
---         go (Next e) = e
-
--- -- hylomorphism
--- -- TODO (Ben @ 2022/08/23) use hylo from recursion-schemes
--- termAtPos :: Int -> ExprWithSpan -> ExprWithSpan
--- termAtPos p expr = finish (prune p expr)
-
-------------------------------------------------------------
-
--- data ParseResult = ParseResult
---   { parsedExpr  :: ExprWithSpan
---   , parsedLines :: [Int]
---   } deriving (Show, Eq)
-
--- data Pos = Pos
---   { posLine :: !Int -- from 0
---   , posCol  :: !Int -- from 0
---   } deriving (Eq, Ord)
-
--- instance Show Pos where
---   show :: Pos -> String
---   show Pos{..} = "l" ++ show posLine ++ "c" ++ show posCol
-
--- offsetFromPos :: ParseResult -> Pos -> Int
--- offsetFromPos ParseResult{..} = offsetFromPos' parsedLines
-
--- -- TODO make efficient with binary tree
--- offsetFromPos' :: [Int] -> Pos -> Int
--- offsetFromPos' _  (Pos 0 c) = c
--- offsetFromPos' ls (Pos l c) = sum (take l ls) + c
-
--- -- TODO make efficient with binary tree
--- posFromOffset
---   :: ParseResult -- line lengths
---   -> Int   -- absolute offset into the string
---   -> Pos
--- posFromOffset ParseResult{..} off = go 0 0 parsedLines
---   where go
---           :: Int   -- accumulator (lines consumed so far)
---           -> Int   -- accumulator (sum of line lengths so far)
---           -> [Int] -- rest
---           -> Pos
---         go l acc [] = Pos l (off - acc)  -- should not happen
---         go l acc (x:xs)
---           | off < acc + x = Pos l (off - acc)
---           | otherwise     = go (l+1) (acc + x) xs
-
--- parse :: Text -> Either Text ParseResult
--- parse t =
---   case result of
---     Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
---     Right x -> Right $ ParseResult x lines
---   where result = MP.runParser pNode "[filename]" (textSpan t)
---         lines = map ( (1+) . T.length ) $ T.lines t

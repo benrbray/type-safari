@@ -33,7 +33,6 @@ export function parseTreePlugin(
             filter: () => false, // clear all previous
             add: [underlineMark.range(from, to)]
           });
-          console.log("update", from, to);
         }
       }
     }

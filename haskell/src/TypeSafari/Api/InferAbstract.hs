@@ -28,10 +28,10 @@ data Output = Output {
     outputSubst :: Maybe (Map Text Text),
     outputConstraints :: Maybe [Text],
     outputActions :: Maybe [Text],
-    outputExpr :: Maybe Stx.Expr,
+    outputExpr :: Maybe Stx.LocatedExpr,
     outputError :: Maybe Text
   }
-  deriving stock (Show, Generic)
+  deriving stock (Generic)
   deriving anyclass ToJSON
 
 --------------------------------------------------------------------------------
@@ -52,7 +52,7 @@ mkOutputParseError err = Output {
     outputError = Just err
   }
 
-mkOutputTypeError :: Stx.Expr -> Text -> Output
+mkOutputTypeError :: Stx.LocatedExpr -> Text -> Output
 mkOutputTypeError expr err = Output {
     outputType = Nothing,
     outputSubst = Nothing,
@@ -65,7 +65,7 @@ mkOutputTypeError expr err = Output {
 mkSubst :: SubstMV -> Map Text Text
 mkSubst = Map.mapKeys pretty . Map.map pretty
 
-mkOutput :: Stx.Expr -> Result -> Output
+mkOutput :: Stx.LocatedExpr -> Result -> Output
 mkOutput e Result{..} = Output {
     outputType = Just $ pretty resultType,
     outputExpr = Just e,

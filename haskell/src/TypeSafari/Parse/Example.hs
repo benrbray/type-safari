@@ -298,13 +298,6 @@ nameP = do
 
 ---- expressions -------------------------------------------
 
--- letExprP :: Parser LocatedExpr
--- letExprP =
---   InF <$> (LetExpr <$>
---     (_let *> nameP) <*>
---     (_equal *> simpleExprP) <*>
---     (_in *> exprP))  MP.<?> "let"
-
 letExprP :: Parser LocatedExpr
 letExprP = (InF <$> do
   Span p0 _ <- getSpan <$> _let
@@ -333,7 +326,6 @@ lamP = (InF <$> do
   ) MP.<?> "lambda"
 
 spineP :: Parser LocatedExpr
--- spineP = foldl1 App <$> MP.some simpleExprP MP.<?> "spine"
 spineP = foldl1 go <$> MP.some simpleExprP MP.<?> "spine"
   where
     go :: LocatedExpr -> LocatedExpr -> LocatedExpr
@@ -404,4 +396,3 @@ parse t =
     Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
     Right expr -> Right $ ParseResult expr
   where result = MP.runParser (exprP <* MP.eof) "[filename]" (L.textSpan t)
-        -- lines = map ( (1 +) . T.length ) $ T.lines t

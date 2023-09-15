@@ -3,245 +3,266 @@ module TypeSafari.HindleyMilner.Parse where
 import Control.Monad.Combinators.Expr
   
 import Text.Megaparsec ((<?>))
-import Text.Megaparsec      qualified as MP
-import Text.Megaparsec.Char qualified as MP
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec qualified as MP
+import TypeSafari.Parse.Located qualified as L
 
 import Data.Void
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prelude
 
+import TypeSafari.HindleyMilner.Syntax (ExprF(..), Lit (..), BinOp (..), LocatedExpr)
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.HindleyMilner.Infer (Type(..), TV (TvBound), MV (MV))
-import TypeSafari.Pretty (Pretty(..))
+import TypeSafari.Parse.Located (TextSpan)
+import TypeSafari.Parse.Span (OffsetSpan, Span (..), HasSpan (..))
+import TypeSafari.RecursionSchemes.Mu (Mu (..))
 
 --------------------------------------------------------------------------------
 
-type Parser = MP.Parsec Void Text
-
-sc :: Parser ()
-sc = L.space MP.space1 MP.empty MP.empty
-
-lexeme :: Parser a -> Parser a
-lexeme = L.lexeme sc
-
-symbol :: Text -> Parser Text
-symbol = L.symbol sc
+type Parser = MP.Parsec Void L.TextSpan
 
 --------------------------------------------------------------------------------
 
-_backslash :: Parser Text
-_backslash = symbol "\\"
+_backslash :: Parser TextSpan
+_backslash = L.symbol "\\"
 
-_arrow :: Parser Text
-_arrow = symbol "->"
+_arrow :: Parser TextSpan
+_arrow = L.symbol "->"
 
-_forall :: Parser Text
-_forall = symbol "forall"
+_forall :: Parser TextSpan
+_forall = L.symbol "forall"
 
-_forallUnicode :: Parser Text
-_forallUnicode = symbol "∀"
+_forallUnicode :: Parser TextSpan
+_forallUnicode = L.symbol "∀"
 
-_comma :: Parser Text
-_comma = symbol ","
+_comma :: Parser TextSpan
+_comma = L.symbol ","
 
-_questionMark :: Parser Text
-_questionMark = symbol "?"
+_questionMark :: Parser TextSpan
+_questionMark = L.symbol "?"
 
-_let :: Parser Text
-_let = symbol "let"
+_let :: Parser TextSpan
+_let = L.symbol "let"
 
-_in :: Parser Text
-_in = symbol "in"
+_in :: Parser TextSpan
+_in = L.symbol "in"
 
-_if :: Parser Text
-_if = symbol "if"
+_if :: Parser TextSpan
+_if = L.symbol "if"
 
-_then :: Parser Text
-_then = symbol "then"
+_then :: Parser TextSpan
+_then = L.symbol "then"
 
-_else :: Parser Text
-_else = symbol "else"
+_else :: Parser TextSpan
+_else = L.symbol "else"
 
-_True :: Parser Text
-_True = symbol "True"
+_True :: Parser TextSpan
+_True = L.symbol "True"
 
-_False :: Parser Text
-_False = symbol "False"
+_False :: Parser TextSpan
+_False = L.symbol "False"
 
-_equal :: Parser Text
-_equal = symbol "="
+_equal :: Parser TextSpan
+_equal = L.symbol "="
 
-_leftparen :: Parser Text
-_leftparen = symbol "("
+_leftparen :: Parser TextSpan
+_leftparen = L.symbol "("
 
-_rightparen :: Parser Text
-_rightparen = symbol ")"
-
---------------------------------------------------------------------------------
-
-integerP :: Parser Stx.Expr
-integerP = Stx.Lit . Stx.LInt <$> lexeme L.decimal
-
-boolP :: Parser Stx.Expr
-boolP = (Stx.Lit . Stx.LBool) <$>
-          MP.choice [ 
-            True <$ _True,
-            False <$ _False
-          ]
-
---------------------------------------------------------------------------------
-
-nameP :: Parser Stx.Name
-nameP = nameP0 >>= check
-  where
-    nameP0 = T.pack <$> lexeme ((:) <$> MP.letterChar <*> MP.many MP.alphaNumChar <?> "variable")
-    check :: Text -> Parser Stx.Name
-    check s =
-      if s `elem` reserved
-        then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
-        else return (Stx.Name s)
-      where 
-        reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
-
-variableP :: Parser Stx.Expr
-variableP = MP.try $ Stx.Var <$> nameP
+_rightparen :: Parser TextSpan
+_rightparen = L.symbol ")"
 
 parens :: Parser a -> Parser a
-parens = MP.between (symbol "(") (symbol ")")
+parens = MP.between _leftparen _rightparen
+
+--------------------------------------------------------------------------------
+
+integerP :: Parser LocatedExpr
+integerP = InF <$> do
+  (s, val) <- L.lexeme L.decimal
+  pure $ Lit (getSpan s) (LInt val)
+
+boolP :: Parser LocatedExpr
+boolP = MP.choice [ mk True <$> _True, mk False <$> _False ]
+  where
+    mk :: Bool -> TextSpan -> LocatedExpr 
+    mk b s = InF $ Lit (getSpan s) (LBool b)
+
+------------------------------------------------------------
+
+variableP :: Parser (LocatedExpr)
+variableP = do
+  (s, text) <- ident
+  pure $ InF $ Var s (Stx.Name text)
+
+ident :: Parser (OffsetSpan, Text)
+ident = L.lexeme name >>= check
+  where
+    name :: Parser TextSpan
+    name = L.cons <$> MP.satisfy L.isAlpha <*> MP.takeWhileP Nothing L.isAlphaNum
+    reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
+    check :: TextSpan -> Parser (OffsetSpan, Text)
+    check ts@L.TextSpan{..} =
+      if tsText `elem` reserved
+      then fail $ "keyword " ++ show tsText ++ " cannot be used as a variable name"
+      else return (getSpan ts, tsText)
+
+nameP :: Parser (OffsetSpan, Stx.Name)
+nameP = do
+  (s, t) <- ident
+  return (s, Stx.Name t)
 
 ---- types -------------------------------------------------
 
--- TODO: validate that type var is bound by a forall
-typeVarP :: Parser TV
-typeVarP = TvBound <$> (lexeme L.decimal) <?> "type variable"
+-- -- TODO: validate that type var is bound by a forall
+-- typeVarP :: Parser TV
+-- typeVarP = TvBound <$> (lexeme L.decimal) <?> "type variable"
 
-metaVarP :: Parser MV
-metaVarP = MV <$> (_questionMark *> nameP) <?> "metavariable"
+-- metaVarP :: Parser MV
+-- metaVarP = MV <$> (_questionMark *> nameP) <?> "metavariable"
 
-typeConstructorP :: Parser Type
-typeConstructorP = (do
-  (Stx.Name t) <- nameP
-  pure $ TypeCon t)  <?> "type constructor"
+-- typeConstructorP :: Parser Type
+-- typeConstructorP = (do
+--   (Stx.Name t) <- nameP
+--   pure $ TypeCon t)  <?> "type constructor"
 
-typeP :: Parser Type
-typeP = MP.choice [
-    typeArrowP,
-    parens typeP,
-    TypeVar <$> typeVarP,
-    TypeMetaVar <$> metaVarP,
-    typeConstructorP
-  ]
+-- typeP :: Parser Type
+-- typeP = MP.choice [
+--     typeArrowP,
+--     parens typeP,
+--     TypeVar <$> typeVarP,
+--     TypeMetaVar <$> metaVarP,
+--     typeConstructorP
+--   ]
 
--- arithmetic expressions
-typeArrowP :: Parser Type
-typeArrowP = makeExprParser termP opTable
-  where
-    termP :: Parser Type
-    termP = MP.choice
-      [ parens typeP
-      , TypeVar <$> typeVarP
-      , TypeMetaVar <$> metaVarP
-      , typeConstructorP
-      ]
-    opTable :: [[Operator Parser Type]]
-    opTable = [ [ InfixR (TypeArr <$ _arrow) ] ]
+-- -- arithmetic expressions
+-- typeArrowP :: Parser Type
+-- typeArrowP = makeExprParser termP opTable
+--   where
+--     termP :: Parser Type
+--     termP = MP.choice
+--       [ parens typeP
+--       , TypeVar <$> typeVarP
+--       , TypeMetaVar <$> metaVarP
+--       , typeConstructorP
+--       ]
+--     opTable :: [[Operator Parser Type]]
+--     opTable = [ [ InfixR (TypeArr <$ _arrow) ] ]
 
 ---- expressions -------------------------------------------
 
-letExprP :: Parser Stx.Expr
-letExprP =
-  (Stx.Let <$>
-    (_let *> nameP) <*>
-    (_equal *> simpleExprP) <*>
-    (_in *> exprP))  <?> "let"
+letExprP :: Parser LocatedExpr
+letExprP = (InF <$> do
+  Span p0 _ <- getSpan <$> _let
+  (sx, x) <- nameP
+  e1 <- (_equal *> simpleExprP)
+  e2 <- (_in *> exprP)
+  let Span _ p1 = getSpan e2
+  return $ Let (Span p0 p1) (sx, x) e1 e2) <?> "let"
 
-ifExprP :: Parser Stx.Expr
-ifExprP =
-  (Stx.If <$>
-    (_if *> simpleExprP) <*> 
-    (_then *> simpleExprP) <*>
-    (_else *> simpleExprP))  <?> "if-then-else"
+ifExprP :: Parser LocatedExpr
+ifExprP = (InF <$> do
+  Span p0 _ <- getSpan <$> _if
+  econ <- simpleExprP
+  etru <- _then *> simpleExprP
+  efls <- _else *> simpleExprP
+  let Span _ p1 = getSpan efls
+  return $ If (Span p0 p1) econ etru efls) <?> "if-then-else"
 
-spineP :: Parser Stx.Expr
-spineP = foldl1 Stx.App <$> MP.some simpleExprP <?> "spine"
+lamP :: Parser LocatedExpr
+lamP = (InF <$> do
+    Span p0 _ <- getSpan <$> _backslash
+    name <- nameP
+    body <- _arrow *> exprP
+    let Span _ p1 = getSpan body
+    return $ Lam (Span p0 p1) name body
+  ) <?> "lambda"
 
-lamP :: Parser Stx.Expr
-lamP = Stx.Lam <$> (_backslash *> nameP) <*> (_arrow *> exprP) <?> "lambda"
+spineP :: Parser LocatedExpr
+spineP = foldl1 go <$> MP.some simpleExprP <?> "spine"
+  where
+    go :: LocatedExpr -> LocatedExpr -> LocatedExpr
+    go e1 e2 = InF $ App (Span p0 p1) e1 e2
+      where
+        Span p0 _ = getSpan e1
+        Span _ p1 = getSpan e2
 
-exprP :: Parser Stx.Expr
-exprP =
-  MP.choice [
+------------------------------------------------------------
+
+exprP :: Parser LocatedExpr
+exprP = MP.choice [
     MP.try spineP,
-    arithExprP,
     letExprP,
-    lamP,
     ifExprP,
+    lamP,
+    MP.try arithExprP,
     boolP,
     variableP
   ] <?> "expr"
 
-simpleExprP :: Parser Stx.Expr
-simpleExprP = MP.choice [ parens exprP, arithExprP, variableP, boolP, integerP ]
-
-------------------------------------------------------------
+simpleExprP :: Parser LocatedExpr
+simpleExprP = MP.choice [
+    parens exprP,
+    MP.try arithExprP,
+    boolP,
+    integerP,
+    variableP
+  ] <?> "simple expression"
 
 -- arithmetic expressions
-arithExprP :: Parser Stx.Expr
-arithExprP = makeExprParser termP opTable
+arithExprP :: Parser LocatedExpr
+arithExprP = makeExprParser termP opTable <?> "arithExpr"
   where
-    termP :: Parser Stx.Expr
+    termP :: Parser LocatedExpr
     termP = MP.choice
       [ parens exprP
       , variableP
-      , integerP
       ]
-    opTable :: [[Operator Parser Stx.Expr]]
+    opTable :: [[Operator Parser LocatedExpr]]
     opTable =
       -- [ [ prefix "-" Stx.
       --   , prefix "+" id
       --   ]
-      [ [ binary "*" (Stx.Op Stx.Mul)
+      [ [ binary "*" (combine Mul)
         --, binary "/" Stx.Div
         ]
-      , [ binary "+" (Stx.Op Stx.Add)
-        , binary "-" (Stx.Op Stx.Sub)
+      , [ binary "+" (combine Add)
+        , binary "-" (combine Sub)
         ]
       ]
-    binary :: Text -> (Stx.Expr -> Stx.Expr -> Stx.Expr) -> Operator Parser Stx.Expr
-    binary name f = InfixL  (f <$ symbol name)
-
-    -- prefix, postfix :: Text -> (Stx.Expr -> Stx.Expr) -> Operator Parser Stx.Expr
-    -- prefix  name f = Prefix  (f <$ symbol name)
-    -- postfix name f = Postfix (f <$ symbol name)
+    combine :: Stx.BinOp -> LocatedExpr -> LocatedExpr -> LocatedExpr
+    combine op e1 e2 = InF $ Bin op (Span a1 b2) e1 e2
+      where Span  a1 _b1 = getSpan e1
+            Span _a2  b2 = getSpan e2
+    binary :: Text -> (LocatedExpr -> LocatedExpr -> LocatedExpr) -> Operator Parser LocatedExpr
+    binary name f = InfixL  (f <$ L.symbol name)
 
 ------------------------------------------------------------
 
 newtype ParseResult = ParseResult
-  { parsedExpr  :: Stx.Expr
-  } deriving stock (Show, Eq)
+  { parsedExpr  :: LocatedExpr
+  } deriving stock (Eq)
 
 parse :: Text -> Either Text ParseResult
 parse t =
-  case MP.runParser (exprP <* MP.eof) "[result]" t of
-    Left peb -> Left . T.pack $ MP.errorBundlePretty peb
-    Right x -> Right $ ParseResult x
+  case result of
+    Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
+    Right expr -> Right $ ParseResult expr
+  where result = MP.runParser (exprP <* MP.eof) "[filename]" (L.textSpan t)
 
 ------------------------------------------------------------
 
-newtype ParseTypeResult = ParseTypeResult
-  { parsedType :: Type
-  } deriving stock (Show, Eq)
+-- newtype ParseTypeResult = ParseTypeResult
+--   { parsedType :: Type
+--   } deriving stock (Show, Eq)
 
-parseType :: Text -> Either Text ParseTypeResult
-parseType t =
-  case MP.runParser (typeP <* MP.eof) "[result]" t of
-    Left peb -> Left . T.pack $ MP.errorBundlePretty peb
-    Right x -> Right $ ParseTypeResult x
+-- -- parseType :: Text -> Either Text ParseTypeResult
+-- -- parseType t =
+-- --   case MP.runParser (typeP <* MP.eof) "[result]" t of
+-- --     Left peb -> Left . T.pack $ MP.errorBundlePretty peb
+-- --     Right x -> Right $ ParseTypeResult x
 
-tryParse :: Pretty a => (Parser a) -> Text -> Text
-tryParse p t =
-  case MP.runParser (p <* MP.eof) "[test]" t of
-    Left peb -> (T.pack . MP.errorBundlePretty) peb
-    Right x -> pretty x
+-- tryParse :: Pretty a => (Parser a) -> Text -> Text
+-- tryParse p t =
+--   case MP.runParser (p <* MP.eof) "[test]" t of
+--     Left peb -> (T.pack . MP.errorBundlePretty) peb
+--     Right x -> pretty x
