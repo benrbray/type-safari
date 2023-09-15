@@ -11,6 +11,7 @@ module TypeSafari.Parse.Located
   , textSpan, textSpanFrom
   , cons
   , lexeme, symbol, satisfy, name
+  , scn, sc
   , decimal
   , isAlpha, isAlphaNum
   )
@@ -172,14 +173,31 @@ string t = MP.tokens test (textSpan t)
 char :: Char -> Parser CharWithPos
 char c = satisfy (== c)
 
+-- | Given a comment prefix this function returns a parser that skips line
+-- comments. Note that it stops just before the newline character but
+-- doesn't consume the newline. Newline is either supposed to be consumed by
+-- 'space' parser or picked up manually.
+-- (https://hackage.haskell.org/package/megaparsec-9.5.0/docs/src/Text.Megaparsec.Char.Lexer.html#skipLineComment)
+skipLineComment ::
+  Text ->
+  Parser ()
+skipLineComment prefix =
+  string prefix *> void (MP.takeWhileP (Just "character") (\(CharWithPos _ c) -> c /= '\n'))
+{-# INLINEABLE skipLineComment #-}
+
 -- spaces and newlines
 scn :: Parser ()
---scn = L.space space1 empty empty
-scn = L.space (void $ MP.some (char ' ' <|> char '\t' <|> char '\n')) empty empty
+scn = L.space whitespace lineComment empty
+  where
+    whitespace = void $ MP.some (char ' ' <|> char '\t' <|> char '\n')
+    lineComment = skipLineComment "--"
 
 -- spaces only, not newlines
 sc :: Parser ()
-sc = L.space (void $ MP.some (char ' ' <|> char '\t')) empty empty
+sc = L.space whitespace lineComment empty
+  where
+    whitespace = (void $ MP.some (char ' ' <|> char '\t'))
+    lineComment = skipLineComment "--"
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme scn -- TODO sc not scn

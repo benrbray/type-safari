@@ -13,7 +13,7 @@ import Prelude
 
 import TypeSafari.HindleyMilner.Syntax (ExprF(..), Lit (..), BinOp (..), LocatedExpr)
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.Parse.Located (TextSpan)
+import TypeSafari.Parse.Located (TextSpan, scn)
 import TypeSafari.Parse.Span (OffsetSpan, Span (..), HasSpan (..))
 import TypeSafari.RecursionSchemes.Mu (Mu (..))
 
@@ -247,7 +247,7 @@ parse t =
   case result of
     Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
     Right expr -> Right $ ParseResult expr
-  where result = MP.runParser (exprP <* MP.eof) "[filename]" (L.textSpan t)
+  where result = MP.runParser ((MP.optional scn) *> exprP <* MP.eof) "[filename]" (L.textSpan t)
 
 ------------------------------------------------------------
 
