@@ -4,4 +4,7 @@
 .cm-scroller { overflow: auto; }
 .cm-wrap { border: 1px solid silver }
 
-.cm-underline { border-bottom: 2px solid red; }
+.cm-underline {
+  border-bottom: 2px solid rgb(0, 185, 25);
+  background-color: rgba(0, 185, 25, 0.1);
+}

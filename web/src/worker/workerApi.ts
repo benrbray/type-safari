@@ -1,4 +1,5 @@
 import { assert, _ } from "spec.ts";
+import { Expr } from "../syntax/Expr";
 
 export type Tag<T extends string> = { tag: T };
 
@@ -34,49 +35,12 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 
 /* ---- response ---------------------------------------- */
 
-export namespace Example {
-	export type Span    = [number, number];
-	export type HasSpan = { span : Span } 
-	export type Expr    = Var | Lit | LamExpr | LetExpr | BinExpr | IfExpr | App;
-
-	export type Var = HasSpan & { tag: "Var", name: string };
-	export type Lit   = HasSpan & { tag: "Lit", value: string };
-	
-	export type BinExpr = HasSpan & { tag: "BinExpr", op: string, left: Expr, right: Expr }
-	
-	export type LetExpr = HasSpan & {
-		tag: "LetExpr",
-		name: { name: string, span: Span },
-		equal: Expr,
-		in: Expr
-	}
-
-	export type LamExpr = HasSpan & {
-		tag: "LamExpr",
-		name: { name: string, span: Span },
-		body: Expr,
-	}
-
-	export type App = HasSpan & {
-		tag: "App",
-		e1: Expr,
-		e2: Expr
-	}
-
-	export type IfExpr = HasSpan & {
-		tag: "IfExpr",
-		econ: Expr,
-		etru: Expr,
-		efls: Expr
-	}
-}
-
 export interface WorkerResultData {
 	"toUpper" : {
 		result : string
 	},
 	"runParse" : {
-		outputExpr?: Example.Expr|undefined
+		outputExpr?: Expr | undefined
 		outputError?: string|undefined
 	},
 	"runParseType" : {

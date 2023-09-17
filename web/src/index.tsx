@@ -4,10 +4,11 @@ import WasmWorker from "./worker/worker?url"
 
 import './index.css'
 import { createSignal } from 'solid-js';
-import { Example, OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
+import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
 // codemirror
-import { SelectionRange } from "@codemirror/state";
+import { SelectionRange, StateField } from "@codemirror/state";
+import { linter, Diagnostic } from "@codemirror/lint";
 
 // lezer lang
 import { printTree } from './lezer/print-lezer-tree';
@@ -17,6 +18,7 @@ import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 import AnsiColor from "ansi-to-html";
 import dedent from "dedent-js";
 import { parseTreePlugin } from './editor/ParseInfoPlugin';
+import { Expr, subexprAt } from './syntax/Expr';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,8 +129,6 @@ const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
 
-    <ParseExample />
-    
     <h2>Type Inference</h2>
     <TypeInference />
   </div>);
@@ -136,110 +136,16 @@ const App = function () {
 
 ////////////////////////////////////////////////////////////
 
-/** @returns `true` if span `a` contains span `b` */
-const contains = ([a1,a2]: Example.Span, [b1,b2]: Example.Span): boolean => {
-  return (b1 >= a1 && b2 < a2);
-}
+// let parseErrors = StateField.define({
+//   create() { return 0; },
+//   update(value, tr) {
+//     return tr.docChanged ? value + 1 : value;
+//   }
+// });
 
-const ParseExample = () => {
-  let codeEditorApi: CodeEditorApi|null = null;
-
-  const handleClick = async () => {
-    if(!codeEditorApi) { return; }
-    const text = codeEditorApi.getCurrentText();
-    const result = await workerApi.runParse(text);
-    console.log(result.data.outputExpr);
-  };
-
-  let parseTree: Example.Expr|null = null;
-
-  const debounce = (delay: number, func: () => void): (() => void) => {
-    let timerId: number;
-    const debounced = () => {
-        clearTimeout(timerId);
-        timerId = setTimeout(() => { func(); }, delay);
-    };
-    return debounced;
-  }
-
-  const handleDocChanged = debounce(400, async () => {
-    if(!codeEditorApi) { return; }
-    const text = codeEditorApi.getCurrentText();
-    const result = await workerApi.runParse(text);
-
-    if(result.data.outputExpr) {
-      parseTree = result.data.outputExpr;
-    } else {
-      console.error(result.data.outputError);
-      parseTree = null;
-    }
-  });
-
-  const subExprs = (e: Example.Expr): [Example.Span, Example.Expr][] => {
-    if(e.tag === "BinExpr") {
-      return [
-        [e.left.span, e.left],
-        [e.right.span, e.right],
-      ];
-    } else if(e.tag === "LetExpr") {
-      return [
-        /* TODO Name is not an expr, so return what? */
-        [e.equal.span, e.equal],
-        [e.in.span, e.in],
-      ];
-    } else if(e.tag === "LamExpr") {
-      return [
-        /* TODO Name is not an expr, so return what? */
-        [e.body.span, e.body]
-      ];
-    } else if(e.tag === "IfExpr") {
-      return [
-        [e.econ.span, e.econ],
-        [e.etru.span, e.etru],
-        [e.efls.span, e.efls]
-      ];
-    } else if(e.tag === "App") {
-      return [
-        [e.e1.span, e.e1],
-        [e.e2.span, e.e2]
-      ];
-    }
-    return [];
-  }
-
-  const subexprAt = (query: [number,number], node: Example.Expr): Example.Expr => {
-    for(let [nodeSpan, subNode] of subExprs(node)) {
-      if(contains(nodeSpan, query)) {
-        return subexprAt(query, subNode);
-      }
-    }
-
-    // by default, return current node
-    return node;
-  }
-
-  const infoAt = (selection: SelectionRange): Example.Expr|null => {
-    if(parseTree === null) { return null; }
-
-    const { from, to } = selection
-    return subexprAt([from,to], parseTree);
-  }
-
-  return (<>
-    <h2>Parse Example</h2>
-    <div class="top">
-      <CodeEditor
-        onReady={(api) => { codeEditorApi = api }}
-        extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
-      >
-        {dedent(String.raw`
-          example
-        `)}
-      </CodeEditor>
-      <button class="btn" onClick={handleClick}>Click Me</button>
-    </div>
-  </>);
-}
+// let foo = linter(view => {
+//   return [];
+// });
 
 const TypeInference = () => {
   const [resultExpr, setResultExpr] = createSignal<string>("");
@@ -281,9 +187,59 @@ const TypeInference = () => {
     setResultConstraints(result.data.outputConstraints || []);
   }
 
+  let parseTree: Expr | null = null;
+
+  const debounce = (delay: number, func: () => void): (() => void) => {
+    let timerId: number;
+    const debounced = () => {
+        clearTimeout(timerId);
+        timerId = setTimeout(() => { func(); }, delay);
+    };
+    return debounced;
+  }
+
+  /**
+   * Schedule an update of the parse tree.
+   */
+  const requestUpdateParseTree = debounce(400, async () => {
+    if(!codeEditorApi) { return; }
+
+    const text = codeEditorApi.getCurrentText();
+    const result = await workerApi.runInferAbstract(text);
+
+    if(result.data.outputExpr) {
+      parseTree = result.data.outputExpr;
+    } else {
+      console.error(result.data.outputError);
+      parseTree = null;
+    }
+  });
+
+  const handleDocChanged = () => {
+    // invalidate parse tree after a change, as the
+    // position annotatoins are no longer valid, and
+    // using them for decorations will cause errors
+    parseTree = null;
+
+    // TODO (Ben @ 2023/09/16) while waiting for a parse update,
+    // map old position annotations through the doc changes
+    requestUpdateParseTree();
+  }
+
+  const infoAt = (selection: SelectionRange): Expr|null => {
+    console.log("infoAt", parseTree === null);
+    if(parseTree === null) { return null; }
+
+    const { from, to } = selection;
+    return subexprAt([from,to], parseTree);
+  }
+
   return (<>
     <div class="top">
-      <CodeEditor onReady={(api) => { codeEditorApi = api }}>
+      <CodeEditor
+        onReady={(api) => { codeEditorApi = api }}
+        extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
+      >
         {dedent(String.raw`
           -- fails because lambda-bound variables are monomorphic under Hindley-Milner
           let const = (\v -> \x -> v) in

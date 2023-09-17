@@ -196,6 +196,7 @@ exprP = MP.choice [
     lamP,
     MP.try arithExprP,
     boolP,
+    integerP,
     variableP
   ] <?> "expr"
 
@@ -215,6 +216,8 @@ arithExprP = makeExprParser termP opTable <?> "arithExpr"
     termP :: Parser LocatedExpr
     termP = MP.choice
       [ parens exprP
+      , boolP
+      , integerP
       , variableP
       ]
     opTable :: [[Operator Parser LocatedExpr]]
