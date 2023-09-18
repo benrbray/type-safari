@@ -9,7 +9,9 @@ module TypeSafari.Core (
   module Control.Arrow,
   module Control.Monad.Except,
   toFst,
-  toSnd
+  toSnd,
+  mapFst,
+  mapSnd
 ) where
 
 import Prelude hiding (Show, show, span)
@@ -30,3 +32,9 @@ toFst = ((,) =<<)
 
 toSnd :: (a -> b) -> a -> (a,b)
 toSnd = ap (,)
+
+mapFst :: (a -> c) -> (a,b) -> (c, b)
+mapFst f (x,y) = (f x, y)
+
+mapSnd :: (b -> c) -> (a,b) -> (a, c)
+mapSnd f (x,y) = (x, f y)

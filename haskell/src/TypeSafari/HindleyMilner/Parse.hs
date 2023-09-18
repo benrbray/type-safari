@@ -7,15 +7,19 @@ import Text.Megaparsec qualified as MP
 import TypeSafari.Parse.Located qualified as L
 
 import Data.Void
-import Data.Text (Text)
 import Data.Text qualified as T
-import Prelude
 
 import TypeSafari.HindleyMilner.Syntax (ExprF(..), Lit (..), BinOp (..), LocatedExpr)
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.Parse.Located (TextSpan, scn)
 import TypeSafari.Parse.Span (OffsetSpan, Span (..), HasSpan (..))
 import TypeSafari.RecursionSchemes.Mu (Mu (..))
+import TypeSafari.Core
+
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
+import Data.Aeson.Types (ToJSON)
+import GHC.Generics (Generic)
 
 --------------------------------------------------------------------------------
 
@@ -27,7 +31,7 @@ _backslash :: Parser TextSpan
 _backslash = L.symbol "\\"
 
 _arrow :: Parser TextSpan
-_arrow = L.symbol "->"
+_arrow = L.symbol "->" <?> "arrow"
 
 _forall :: Parser TextSpan
 _forall = L.symbol "forall"
@@ -107,9 +111,9 @@ ident = L.lexeme name >>= check
       else return (getSpan ts, tsText)
 
 nameP :: Parser (OffsetSpan, Stx.Name)
-nameP = do
+nameP = (do
   (s, t) <- ident
-  return (s, Stx.Name t)
+  return (s, Stx.Name t)) <?> "name"
 
 ---- types -------------------------------------------------
 
@@ -245,10 +249,42 @@ newtype ParseResult = ParseResult
   { parsedExpr  :: LocatedExpr
   } deriving stock (Eq)
 
-parse :: Text -> Either Text ParseResult
+data ParseErrorPos = ParseErrorPos
+  { errorSource :: Text,
+    errorLine   :: Int,
+    errorCol    :: Int
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
+
+newtype ParseError = ParseError
+  { errors :: [(ParseErrorPos, Text)] }
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
+
+makeError :: MP.ParseErrorBundle TextSpan Void -> ParseError
+makeError peb = ParseError errors
+  where
+    errors = map (mapFst posMap) $ NE.toList $ annotateErrorBundle peb
+
+    posMap MP.SourcePos{..} = ParseErrorPos {
+      errorSource = T.pack sourceName,
+      errorLine   = MP.unPos sourceLine,
+      errorCol    = MP.unPos sourceColumn
+      }
+    
+    -- https://stackoverflow.com/a/70139061/1444650
+    annotateErrorBundle :: MP.ParseErrorBundle TextSpan Void -> NonEmpty (MP.SourcePos, T.Text)
+    annotateErrorBundle bundle
+      = fmap (\(err, pos) -> (pos, T.pack . MP.parseErrorTextPretty $ err)) . fst $
+        MP.attachSourcePos MP.errorOffset
+                          (MP.bundleErrors bundle)
+                          (MP.bundlePosState bundle)
+
+parse :: Text -> Either ParseError ParseResult
 parse t =
   case result of
-    Left peb -> Left . T.pack . show $ MP.errorBundlePretty peb
+    Left peb -> Left $ makeError peb
     Right expr -> Right $ ParseResult expr
   where result = MP.runParser ((MP.optional scn) *> exprP <* MP.eof) "[filename]" (L.textSpan t)
 

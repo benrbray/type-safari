@@ -9,7 +9,7 @@ import GHC.Generics
 import Data.Text (Text)
 import Prelude
 
-import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
+import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..), ParseError)
 import TypeSafari.HindleyMilner.Syntax as Stx
 
 --------------------------------------------------------------------------------
@@ -22,10 +22,16 @@ newtype Input = Input {
 
 data Output = Output {
     outputExpr :: Maybe LocatedExpr,
-    outputError :: Maybe Text
+    outputError :: Maybe OutputError
   }
   deriving stock (Generic)
   deriving anyclass ToJSON
+
+data OutputError
+  = OutputParseError ParseError
+  | OutputUnknownError Text
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
 
 --------------------------------------------------------------------------------
 
@@ -35,7 +41,7 @@ runParse Input{..} = pure $
     Left err ->
       Output {
         outputExpr = Nothing,
-        outputError = Just err
+        outputError = Just (OutputParseError err)
       }
     Right ParseResult{ parsedExpr } ->
       Output {
@@ -47,5 +53,5 @@ dispError :: Text -> Output
 dispError t =
   Output {
     outputExpr = Nothing,
-    outputError = Just t
+    outputError = Just (OutputUnknownError t)
   }

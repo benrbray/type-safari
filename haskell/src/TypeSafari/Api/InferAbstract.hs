@@ -10,7 +10,7 @@ import GHC.Generics
 
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
+import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..), ParseError)
 import TypeSafari.HindleyMilner.Infer (SubstMV)
 import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner, Result (..))
@@ -29,10 +29,17 @@ data Output = Output {
     outputConstraints :: Maybe [Text],
     outputActions :: Maybe [Text],
     outputExpr :: Maybe Stx.LocatedExpr,
-    outputError :: Maybe Text
+    outputError :: Maybe OutputError
   }
   deriving stock (Generic)
   deriving anyclass ToJSON
+
+data OutputError
+  = OutputParseError ParseError
+  | OutputTypeError Text
+  | OutputUnknownError Text
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
 
 --------------------------------------------------------------------------------
 
@@ -42,14 +49,14 @@ run Input{..} = pure . fromEither $ do
   result <- mapLeft (mkOutputTypeError parsedExpr . pretty) (hindleyMilner parsedExpr)
   pure $ mkOutput parsedExpr result
 
-mkOutputParseError :: Text -> Output
+mkOutputParseError :: ParseError -> Output
 mkOutputParseError err = Output {
     outputType = Nothing,
     outputExpr = Nothing,
     outputSubst = Nothing,
     outputConstraints = Nothing,
     outputActions = Nothing,
-    outputError = Just err
+    outputError = Just $ OutputParseError err
   }
 
 mkOutputTypeError :: Stx.LocatedExpr -> Text -> Output
@@ -59,7 +66,7 @@ mkOutputTypeError expr err = Output {
     outputActions = Nothing,
     outputConstraints = Nothing,
     outputExpr = Just expr,
-    outputError = Just err
+    outputError = Just $ OutputTypeError err
   }
 
 mkSubst :: SubstMV -> Map Text Text
@@ -83,5 +90,5 @@ dispError t =
     outputSubst = Nothing,
     outputConstraints = Nothing,
     outputActions = Nothing,
-    outputError = Just t
+    outputError = Just $ OutputUnknownError t
   }

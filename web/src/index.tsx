@@ -7,8 +7,7 @@ import { createSignal } from 'solid-js';
 import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
 // codemirror
-import { SelectionRange, StateField } from "@codemirror/state";
-import { linter, Diagnostic } from "@codemirror/lint";
+import { SelectionRange } from "@codemirror/state";
 
 // lezer lang
 import { printTree } from './lezer/print-lezer-tree';
@@ -136,17 +135,6 @@ const App = function () {
 
 ////////////////////////////////////////////////////////////
 
-// let parseErrors = StateField.define({
-//   create() { return 0; },
-//   update(value, tr) {
-//     return tr.docChanged ? value + 1 : value;
-//   }
-// });
-
-// let foo = linter(view => {
-//   return [];
-// });
-
 const TypeInference = () => {
   const [resultExpr, setResultExpr] = createSignal<string>("");
   const [resultType, setResultType] = createSignal<string>("");
@@ -177,7 +165,7 @@ const TypeInference = () => {
     let expr =
       result.data.outputExpr ?
       JSON.stringify(result.data.outputExpr, undefined, 2) :
-      result.data.outputError;
+      JSON.stringify(result.data.outputError, undefined, 2);
     let tp = result.data.outputType || result.data.outputError;
 
     setResultExpr(expr || "");
@@ -207,11 +195,34 @@ const TypeInference = () => {
     const text = codeEditorApi.getCurrentText();
     const result = await workerApi.runInferAbstract(text);
 
+    // clear errors
+    codeEditorApi.clearErrors();
+
     if(result.data.outputExpr) {
       parseTree = result.data.outputExpr;
     } else {
-      console.error(result.data.outputError);
       parseTree = null;
+
+      const error = result.data.outputError!;
+      console.warn(error);
+
+      if(error.tag === "OutputParseError") {
+        for(let err of error.contents.errors) {
+          const errorStart = codeEditorApi.lineColToPos(err[0].errorLine, err[0].errorCol);
+          
+          if(errorStart !== null) {
+            codeEditorApi.addError({
+              type: "ParseError",
+              message: err[1],
+              range: { from: Math.max(0, errorStart-1), to: errorStart }
+            });
+          } else {
+            console.error("bad line/col", error);
+          }
+
+        }
+  
+      }
     }
   });
 
@@ -227,7 +238,6 @@ const TypeInference = () => {
   }
 
   const infoAt = (selection: SelectionRange): Expr|null => {
-    console.log("infoAt", parseTree === null);
     if(parseTree === null) { return null; }
 
     const { from, to } = selection;
