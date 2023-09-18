@@ -28,6 +28,7 @@ Hindley-Milner & Extensions
 * [ ] Local vs. Top-Level
 * [ ] Higher Rank Polymorphism
 * [ ] Row Polymorphism
+* [ ] Units of Measure, Commutative Group Unification a la [Gundry 2013](https://adam.gundry.co.uk/pub/thesis/thesis-2013-12-03.pdf)
 
 Type Inference for Dependent Types
 

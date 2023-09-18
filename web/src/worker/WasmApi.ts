@@ -22,5 +22,4 @@ export type WasmApi = {
   runParse: JsonOp;
   runParseType: JsonOp;
   runInferAbstract: JsonOp;
-  runInferConcrete: JsonOp;
 }

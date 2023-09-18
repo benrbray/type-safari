@@ -6,6 +6,9 @@ import './index.css'
 import { createSignal } from 'solid-js';
 import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
+// codemirror
+import { SelectionRange } from "@codemirror/state";
+
 // lezer lang
 import { printTree } from './lezer/print-lezer-tree';
 import { parser } from "./lezer/lang.grammar"
@@ -13,6 +16,8 @@ import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 
 import AnsiColor from "ansi-to-html";
 import dedent from "dedent-js";
+import { parseTreePlugin } from './editor/ParseInfoPlugin';
+import { Expr, subexprAt } from './syntax/Expr';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,10 +101,6 @@ const workerApi = {
   async runInferAbstract(inputText: string) {
     return callWorkerApi("runInferAbstract", { inputText });
   },
-
-  async runInferConcrete(inputText: string) {
-    return callWorkerApi("runInferConcrete", { inputText });
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,7 +127,7 @@ const root = document.getElementById('root');
 const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
-    
+
     <h2>Type Inference</h2>
     <TypeInference />
   </div>);
@@ -164,7 +165,7 @@ const TypeInference = () => {
     let expr =
       result.data.outputExpr ?
       JSON.stringify(result.data.outputExpr, undefined, 2) :
-      result.data.outputError;
+      JSON.stringify(result.data.outputError, undefined, 2);
     let tp = result.data.outputType || result.data.outputError;
 
     setResultExpr(expr || "");
@@ -174,16 +175,85 @@ const TypeInference = () => {
     setResultConstraints(result.data.outputConstraints || []);
   }
 
-  return (<div class="demo">
-    <h1>type-safari</h1>
+  let parseTree: Expr | null = null;
 
-    <h2>Type Inference</h2>
+  const debounce = (delay: number, func: () => void): (() => void) => {
+    let timerId: number;
+    const debounced = () => {
+        clearTimeout(timerId);
+        timerId = setTimeout(() => { func(); }, delay);
+    };
+    return debounced;
+  }
+
+  /**
+   * Schedule an update of the parse tree.
+   */
+  const requestUpdateParseTree = debounce(400, async () => {
+    if(!codeEditorApi) { return; }
+
+    const text = codeEditorApi.getCurrentText();
+    const result = await workerApi.runInferAbstract(text);
+
+    // clear errors
+    codeEditorApi.clearErrors();
+
+    if(result.data.outputExpr) {
+      parseTree = result.data.outputExpr;
+    } else {
+      parseTree = null;
+
+      const error = result.data.outputError!;
+      console.warn(error);
+
+      if(error.tag === "OutputParseError") {
+        for(let err of error.contents.errors) {
+          const errorStart = codeEditorApi.lineColToPos(err[0].errorLine, err[0].errorCol);
+          
+          if(errorStart !== null) {
+            codeEditorApi.addError({
+              type: "ParseError",
+              message: err[1],
+              range: { from: Math.max(0, errorStart-1), to: errorStart }
+            });
+          } else {
+            console.error("bad line/col", error);
+          }
+
+        }
+  
+      }
+    }
+  });
+
+  const handleDocChanged = () => {
+    // invalidate parse tree after a change, as the
+    // position annotatoins are no longer valid, and
+    // using them for decorations will cause errors
+    parseTree = null;
+
+    // TODO (Ben @ 2023/09/16) while waiting for a parse update,
+    // map old position annotations through the doc changes
+    requestUpdateParseTree();
+  }
+
+  const infoAt = (selection: SelectionRange): Expr|null => {
+    if(parseTree === null) { return null; }
+
+    const { from, to } = selection;
+    return subexprAt([from,to], parseTree);
+  }
+
+  return (<>
     <div class="top">
-      <CodeEditor onReady={(api) => { codeEditorApi = api }}>
+      <CodeEditor
+        onReady={(api) => { codeEditorApi = api }}
+        extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
+      >
         {dedent(String.raw`
           -- fails because lambda-bound variables are monomorphic under Hindley-Milner
           let const = (\v -> \x -> v) in
-          let f = (\y -> if True then (y 1) else (y True) in
+          let f = (\y -> if True then (y 1) else (y True)) in
           f const
         `)}
       </CodeEditor>
@@ -211,8 +281,7 @@ const TypeInference = () => {
     <div>
     {resultConstraints()}
     </div>
-
-  </div>);
+  </>);
 }
 
 ////////////////////////////////////////////////////////////

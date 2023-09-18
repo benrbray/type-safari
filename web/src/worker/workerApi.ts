@@ -1,4 +1,5 @@
 import { assert, _ } from "spec.ts";
+import { Expr } from "../syntax/Expr";
 
 export type Tag<T extends string> = { tag: T };
 
@@ -18,9 +19,6 @@ export interface WorkerRequestData {
 	},
 	"runInferAbstract" : {
 		inputText: string
-	},
-	"runInferConcrete" : {
-		inputText: string
 	}
 }
 
@@ -37,30 +35,52 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 
 /* ---- response ---------------------------------------- */
 
+type OutputError
+	= OutputParseError
+	| OutputTypeError
+	| OutputUnknownError
+
+type OutputParseError = {
+	tag: "OutputParseError",
+	contents: {
+		errors: [{
+			errorLine: number,
+			errorCol: number,
+			errorSource: string
+		}, string][]
+	}
+}
+
+type OutputTypeError = {
+	tag: "OutputTypeError"
+	contents: string
+}
+
+type OutputUnknownError = {
+	tag: "OutputUnknownError"
+	contents: string
+}
+
 export interface WorkerResultData {
 	"toUpper" : {
 		result : string
 	},
 	"runParse" : {
-		inputText: string
+		outputExpr?: Expr | undefined
+		outputError?: OutputError|undefined
 	},
 	"runParseType" : {
 		outputType?: any|undefined
-		outputError?: string|undefined
+		outputError?: OutputError|undefined
 	},
 	"runInferAbstract" : {
 		outputExpr?: any|undefined
 		outputType?: any|undefined
-		outputError?: string|undefined
+		outputError?: OutputError|undefined
 		outputConstraints?: string[],
 		outputSubst?: { [typeVar:string] : string }|undefined
 		outputActions?: string[] | undefined
 	},
-	"runInferConcrete" : {
-		outputExpr?: any|undefined
-		outputType?: any|undefined
-		outputError?: string|undefined
-	}
 }
 
 export interface WorkerResult<Op extends OpName> {

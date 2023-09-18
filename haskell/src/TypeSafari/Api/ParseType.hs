@@ -9,8 +9,7 @@ import GHC.Generics
 import Data.Text (Text)
 import Prelude
 
-import TypeSafari.HindleyMilner.Parse (parseType, ParseTypeResult (..))
-import TypeSafari.Pretty (Pretty(..))
+-- import TypeSafari.HindleyMilner.Parse (parseType, ParseTypeResult (..))
 
 --------------------------------------------------------------------------------
 
@@ -30,18 +29,19 @@ data Output = Output {
 --------------------------------------------------------------------------------
 
 run :: Input -> IO Output
-run Input{..} = pure $
-  case parseType inputText of
-    Left err ->
-      Output {
-        outputType = Nothing,
-        outputError = Just err
-      }
-    Right ParseTypeResult{ parsedType } ->
-      Output {
-        outputType = Just $ pretty parsedType,
-        outputError = Nothing
-      }
+run _ = pure $ Output Nothing Nothing
+-- run Input{..} = pure $
+--   case parseType inputText of
+--     Left err ->
+--       Output {
+--         outputType = Nothing,
+--         outputError = Just err
+--       }
+--     Right ParseTypeResult{ parsedType } ->
+--       Output {
+--         outputType = Just $ pretty parsedType,
+--         outputError = Nothing
+--       }
 
 dispError :: Text -> Output
 dispError t =

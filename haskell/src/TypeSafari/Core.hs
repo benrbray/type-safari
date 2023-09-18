@@ -6,19 +6,24 @@ module TypeSafari.Core (
   module Data.Set,
   module Data.Map,
   module Data.Text,
+  module Control.Arrow,
   module Control.Monad.Except,
   toFst,
-  toSnd
+  toSnd,
+  mapFst,
+  mapSnd
 ) where
 
-import Prelude hiding (Show, show)
+import Prelude hiding (Show, show, span)
 import Protolude (Show, show, catMaybes, mapMaybe)
 import Data.Either.Extra
 import Data.Functor.Identity
 import Data.Text (Text)
 import Data.Set (Set)
 import Data.Map (Map)
+import Control.Arrow((>>>))
 import Control.Monad.Except
+import GHC.Base (ap)
 
 ------------------------------------------------------------
 
@@ -27,3 +32,9 @@ toFst = ((,) =<<)
 
 toSnd :: (a -> b) -> a -> (a,b)
 toSnd = ap (,)
+
+mapFst :: (a -> c) -> (a,b) -> (c, b)
+mapFst f (x,y) = (f x, y)
+
+mapSnd :: (b -> c) -> (a,b) -> (a, c)
+mapSnd f (x,y) = (x, f y)

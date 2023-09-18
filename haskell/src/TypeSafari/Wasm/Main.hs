@@ -23,7 +23,6 @@ import Data.ByteString.Unsafe
 import TypeSafari.FFI.StringWithLen
 import TypeSafari.Api.Parse qualified as Parse
 import TypeSafari.Api.ParseType qualified as ParseType
-import TypeSafari.Api.InferConcrete qualified as InferConcrete
 import TypeSafari.Api.InferAbstract qualified as InferAbstract
 
 --------------------------------------------------------------------------------
@@ -116,11 +115,7 @@ foreign export ccall runParseType :: ForeignStringTransform
 runInferAbstract :: ForeignStringTransform
 runInferAbstract = runJsonTransform InferAbstract.run InferAbstract.dispError
 
-runInferConcrete :: ForeignStringTransform
-runInferConcrete = runJsonTransform InferConcrete.runHindleyMilner InferConcrete.dispError
-
 foreign export ccall runInferAbstract :: ForeignStringTransform
-foreign export ccall runInferConcrete :: ForeignStringTransform
 
 --------------------------------------------------------------------------------
 

@@ -24,16 +24,20 @@ module TypeSafari.HindleyMilner.Infer (
   substMetaVars
 ) where
 
-import Data.Map qualified as Map
-import Data.Set qualified as Set
-import Data.Text qualified as Text
-import TypeSafari.HindleyMilner.Syntax (Name(..), Expr(..))
-import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.Pretty (Pretty (..), nl)
-import TypeSafari.Core
 import Control.Monad.RWS (get, put)
 import Control.Monad.State (StateT, runStateT)
 import Control.Monad (replicateM)
+
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+
+import TypeSafari.HindleyMilner.Syntax (Name(..), Expr, ExprF(..))
+import TypeSafari.HindleyMilner.Syntax qualified as Stx
+import TypeSafari.Pretty (Pretty (..), nl)
+import TypeSafari.Core
+import TypeSafari.RecursionSchemes.Mu (Mu(..))
+
 
 ---- types ---------------------------------------------------------------------
 
@@ -80,7 +84,7 @@ typeInt = TypeCon "Int"
 typeBool :: Type
 typeBool = TypeCon "Bool"
 
-ops :: Map.Map Stx.Binop Type
+ops :: Map.Map Stx.BinOp Type
 ops = Map.fromList [
       (Stx.Add, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
     , (Stx.Mul, (typeInt `TypeArr` (typeInt `TypeArr` typeInt)))
@@ -313,8 +317,8 @@ class (MonadTypeError m, MonadTypeEnv m, MonadFresh m, MonadConstraint m, MonadD
   -- | To be called each time an expression is visited during recursion.
   -- This is purely for debugging purposes, and should be pure for `InferConcrete`.
   -- TODO: Is there a recursion-schemes way to do this without having a typeclass?
-  visit :: Expr -> m ()
-  annot :: Expr -> Type -> m Type
+  visit :: Expr s -> m ()
+  annot :: Expr s -> Type -> m Type
 
 ---- generic operations built from primitives ----------------------------------
 
@@ -360,47 +364,61 @@ generalize monos t = do
 ---- constraint generation -----------------------------------------------------
 
 -- increment all de bruijn indices by one
-raise :: Stx.Expr -> Stx.Expr
-raise (App e1 e2)          = App (raise e1) (raise e2)
-raise (Lam x e0)           = Lam x (raise e0)
-raise (Let x e1 e2)        = Let x (raise e1) (raise e2)
-raise (If econd etru efls) = If (raise econd) (raise etru) (raise efls)
-raise (Fix e)              = Fix (raise e)
-raise (Op op e1 e2)        = Op op (raise e1) (raise e2) 
-raise e@(Var _)            = e
-raise e@(Lit _)            = e
+-- TODO this doesn't actually add +1 anywhere!!
+-- raise :: Expr s -> Expr s
+-- raise (App s e1 e2)          = App s (raise e1) (raise e2)
+-- raise (Lam s x e0)           = Lam s x (raise e0)
+-- raise (Let s x e1 e2)        = Let s x (raise e1) (raise e2)
+-- raise (If s econd etru efls) = If s (raise econd) (raise etru) (raise efls)
+-- raise (Bin s op e1 e2)       = Bin s op (raise e1) (raise e2) 
+-- raise e@(Var s _)            = e
+-- raise e@(Lit s _)            = e
+
+-- raise :: Expr s -> Expr s
+-- raise = cata (InF . raiseF)
+--   where
+--     raiseF :: ExprF s (Expr s) -> ExprF s (Expr s)
+--     raiseF (App s e1 e2)          = App s (raise e1) (raise e2)
+--     raiseF (Lam s x e0)           = Lam s x (raise e0)
+--     raiseF (Let s x e1 e2)        = Let s x (raise e1) (raise e2)
+--     raiseF (If s econd etru efls) = If s (raise econd) (raise etru) (raise efls)
+--     raiseF (Bin s op e1 e2)       = Bin s op (raise e1) (raise e2) 
+--     raiseF e@(Var s _)            = e
+--     raiseF e@(Lit s _)            = e
 
 -- | generates equality constraints between types, in a bottom-up,
 -- manner to be solved by the unification engine later
-infer :: MonadInfer m => Expr -> m Type
-infer ex = ((annot ex) =<<) $ visit ex >> case ex of
+-- TODO make this a catamorphism
+infer :: forall s m. MonadInfer m => Expr s -> m Type
+infer expr@(InF ex) = ((annot expr) =<<) $ visit expr >> case ex of
 
   -- In a well-formed term, each term variable should be bound by either a let-
   -- expression or lambda-abstraction.  So, before recursing down to this `Var`
   -- node, the inference procedure has already assigned a type scheme (possibly
   -- with yet-unknown metavariables) to this term variable.  We simply look it
   -- up and instantiate new metavariables for any forall-bindings in the scheme.
-  Var x ->
+  Var _ x ->
     typeOf x >>=
     \case
       Nothing  -> throwTypeError $ UnboundVariable x
       Just sch -> instantiate sch
 
-  Lam x e -> do
+  Lam _ (_,x) e -> do
     tv <- TypeMetaVar <$> freshMetaVar
     -- note: program vars bound by lambdas are given _monotypes_
-    t  <- inLocalScope (x, Forall 1 tv) (infer $ raise e)
+    -- TODO `tv` should be `raise tv`
+    t  <- inLocalScope (x, Forall 1 tv) (infer e)
     -- TODO constrainEqual here, as in (Heeren2002)?
     return (tv `TypeArr` t)
 
-  App efun earg -> do
+  App _ efun earg -> do
     tres <- TypeMetaVar <$> freshMetaVar
     tfun <- infer efun
     targ <- infer earg
     constrainEqual tfun (TypeArr targ tres)
     return tres
 
-  Let x e1 e2 -> do
+  Let _ (_,x) e1 e2 -> do
     -- let-generalization
     te1 <- infer e1
     mx  <- TypeMetaVar <$> freshMetaVar
@@ -413,7 +431,7 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
     return te2
 
-  If econd etru efls -> do
+  If _ econd etru efls -> do
     tcond <- infer econd
     ttru  <- infer etru
     tfls  <- infer efls
@@ -423,13 +441,13 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
     return ttru
 
-  Fix e -> do
-    t    <- infer e
-    tres <- TypeMetaVar <$> freshMetaVar
-    constrainEqual t (TypeArr tres tres)
-    return t
+  -- Fix e -> do
+  --   t    <- infer e
+  --   tres <- TypeMetaVar <$> freshMetaVar
+  --   constrainEqual t (TypeArr tres tres)
+  --   return t
 
-  Op op e1 e2 -> do
+  Bin op _ e1 e2 -> do
     t1     <- infer e1
     t2     <- infer e2
     tres   <- TypeMetaVar <$> freshMetaVar
@@ -439,8 +457,8 @@ infer ex = ((annot ex) =<<) $ visit ex >> case ex of
 
     return tres
 
-  Lit (Stx.LInt _)  -> return typeInt
-  Lit (Stx.LBool _) -> return typeBool
+  Lit _ (Stx.LInt _)  -> return typeInt
+  Lit _ (Stx.LBool _) -> return typeBool
 
 ---- first-order unification ---------------------------------------------------
 

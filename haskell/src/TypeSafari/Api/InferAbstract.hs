@@ -10,7 +10,7 @@ import GHC.Generics
 
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..))
+import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..), ParseError)
 import TypeSafari.HindleyMilner.Infer (SubstMV)
 import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner, Result (..))
@@ -28,11 +28,18 @@ data Output = Output {
     outputSubst :: Maybe (Map Text Text),
     outputConstraints :: Maybe [Text],
     outputActions :: Maybe [Text],
-    outputExpr :: Maybe Stx.Expr,
-    outputError :: Maybe Text
+    outputExpr :: Maybe Stx.LocatedExpr,
+    outputError :: Maybe OutputError
   }
-  deriving stock (Show, Generic)
+  deriving stock (Generic)
   deriving anyclass ToJSON
+
+data OutputError
+  = OutputParseError ParseError
+  | OutputTypeError Text
+  | OutputUnknownError Text
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
 
 --------------------------------------------------------------------------------
 
@@ -42,30 +49,30 @@ run Input{..} = pure . fromEither $ do
   result <- mapLeft (mkOutputTypeError parsedExpr . pretty) (hindleyMilner parsedExpr)
   pure $ mkOutput parsedExpr result
 
-mkOutputParseError :: Text -> Output
+mkOutputParseError :: ParseError -> Output
 mkOutputParseError err = Output {
     outputType = Nothing,
     outputExpr = Nothing,
     outputSubst = Nothing,
     outputConstraints = Nothing,
     outputActions = Nothing,
-    outputError = Just err
+    outputError = Just $ OutputParseError err
   }
 
-mkOutputTypeError :: Stx.Expr -> Text -> Output
+mkOutputTypeError :: Stx.LocatedExpr -> Text -> Output
 mkOutputTypeError expr err = Output {
     outputType = Nothing,
     outputSubst = Nothing,
     outputActions = Nothing,
     outputConstraints = Nothing,
     outputExpr = Just expr,
-    outputError = Just err
+    outputError = Just $ OutputTypeError err
   }
 
 mkSubst :: SubstMV -> Map Text Text
 mkSubst = Map.mapKeys pretty . Map.map pretty
 
-mkOutput :: Stx.Expr -> Result -> Output
+mkOutput :: Stx.LocatedExpr -> Result -> Output
 mkOutput e Result{..} = Output {
     outputType = Just $ pretty resultType,
     outputExpr = Just e,
@@ -83,5 +90,5 @@ dispError t =
     outputSubst = Nothing,
     outputConstraints = Nothing,
     outputActions = Nothing,
-    outputError = Just t
+    outputError = Just $ OutputUnknownError t
   }
