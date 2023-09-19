@@ -128,9 +128,33 @@ const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
 
+    <h2>Unification</h2>
+    <Unification />
+
     <h2>Type Inference</h2>
     <TypeInference />
   </div>);
+}
+
+////////////////////////////////////////////////////////////
+
+const Unification = () => {
+  let codeEditorApi: CodeEditorApi;
+
+  return <div>
+    <CodeEditor
+      lang="unification"
+      onReady={(api) => { codeEditorApi = api }}
+      // extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
+    >
+      {dedent(String.raw`
+        -- fails because lambda-bound variables are monomorphic under Hindley-Milner
+        let const = (\v -> \x -> v) in
+        let f = (\y -> if True then (y 1) else (y True)) in
+        f const
+      `)}
+    </CodeEditor>
+  </div>;
 }
 
 ////////////////////////////////////////////////////////////
@@ -246,7 +270,7 @@ const TypeInference = () => {
 
   return (<>
     <div class="top">
-      <CodeEditor
+    <CodeEditor
         onReady={(api) => { codeEditorApi = api }}
         extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
       >

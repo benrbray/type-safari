@@ -11,6 +11,7 @@ import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle } from 
 const tagMetaVar = T.define(tags.meta);
 const tagTypeVar = T.define(tags.typeName);
 const tagTermVar = T.define(tags.variableName);
+const tagConstraintOp = T.define(tags.compareOperator);
 
 let parserWithMetadata = parser.configure({
   props: [
@@ -43,6 +44,8 @@ let parserWithMetadata = parser.configure({
       MetaVar: tagMetaVar,
       TypeVar: tagTypeVar,
       TypeCon: tags.typeName,
+      /* constraints */
+      constraintOp: tagConstraintOp
     }),
     indentNodeProp.add({
       // TODO (Ben @ 2023/09/12) handle indentatoin
@@ -57,15 +60,37 @@ let parserWithMetadata = parser.configure({
 
 /* ---- language support -------------------------------- */
 
-const exampleLanguage = LRLanguage.define({
-  parser: parserWithMetadata,
-  languageData: {
-    commentTokens: {line: ";"}
-  }
-})
+export const exprLangSuport = () => {
+  return new LanguageSupport(
+    LRLanguage.define({
+      parser: parserWithMetadata,
+      languageData: {
+        commentTokens: {line: "--"}
+      }
+    })
+  )
+}
 
-export const langSupport = () => {
-  return new LanguageSupport(exampleLanguage)
+export const typeLangSuport = () => {
+  return new LanguageSupport(
+    LRLanguage.define({
+      parser: parserWithMetadata.configure({ top: "TypeLang" }),
+      languageData: {
+        commentTokens: {line: "--"}
+      }
+    })
+  )
+}
+
+export const unifLangSuport = () => {
+  return new LanguageSupport(
+    LRLanguage.define({
+      parser: parserWithMetadata.configure({ top: "UnifLang" }),
+      languageData: {
+        commentTokens: {line: "--"}
+      }
+    })
+  )
 }
 
 /* ---- syntax highlighting ----------------------------- */
@@ -87,6 +112,8 @@ const highlightStyle = HighlightStyle.define([
   {tag: tags.typeName, color: "#a85800" },
   {tag: tagTypeVar },
   {tag: tagMetaVar, color: "#ff00d6" },
+  /* constraints */
+  {tag: tagConstraintOp, color: "#a500ff", fontWeight: "bold" }
 ]);
 
 export const langHighlight = syntaxHighlighting(highlightStyle);

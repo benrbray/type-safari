@@ -2,7 +2,7 @@
 import { onMount } from 'solid-js';
 
 // codemirror
-import { langHighlight, langSupport } from '../../lezer/lang';
+import { langHighlight, exprLangSuport, typeLangSuport, unifLangSuport } from '../../lezer/lang';
 import { EditorView, basicSetup } from "codemirror"
 import {showPanel, Panel} from "@codemirror/view"
 import { EditorState, Extension } from "@codemirror/state"
@@ -10,34 +10,59 @@ import { EditorState, Extension } from "@codemirror/state"
 // project
 import "./CodeEditor.css"
 import { ErrorInfo, errorPlugin, clearErrors, addError } from '../../editor/ErrorPlugin';
+import { printTree } from '../../lezer/print-lezer-tree';
 
 ////////////////////////////////////////////////////////////
 
 export interface CodeEditorProps {
   onReady: (api: CodeEditorApi) => void,
   children: string, // editor contents
-  extensions?: Extension[]
+  extensions?: Extension[],
+  lang?: "expr"|"type"|"unification"
 }
 
 export interface CodeEditorApi {
   getCurrentText: () => string,
+  getPrettyAst: () => string,
   clearErrors: () => void,
   addError: (error: ErrorInfo) => void
   lineColToPos: (line: number, col: number) => number|null
 }
 
+const selectLangSupport = (lang: "expr"|"type"|"unification"|undefined) => {
+  if(lang === "type")        { return typeLangSuport(); }
+  if(lang === "expr")        { return exprLangSuport(); }
+  if(lang === "unification") { return unifLangSuport(); }
+
+  return exprLangSuport();
+}
+
 export const CodeEditor = (props: CodeEditorProps) => {
+  // select language
+  const langSupport = selectLangSupport(props.lang);
+
+  // print AST
+  const printLezerAst = () => {
+    if(!codeEditorApi) { return; }
+
+    const text = codeEditorApi.getCurrentText();
+    const parsed = langSupport.language.parser.parse(text);
+    const pretty = printTree(parsed, text);
+    console.log(pretty);
+  }
+
   // thanks to SolidJS, we can just assign JSX to a variable!
   let editorElt: HTMLDivElement|undefined;
+  let codeEditorApi: CodeEditorApi|null = null;
 
   onMount(() => {
     if(!editorElt) { throw Error("editorElt not defined"); }
-    
+
     const editor = new EditorView({
       doc: props.children,
       extensions: [
         basicSetup,
-        langSupport(),
+        langSupport,
         langHighlight,
         selectionPanelPlugin(),
         errorPlugin(),
@@ -46,10 +71,17 @@ export const CodeEditor = (props: CodeEditorProps) => {
       parent: editorElt!
     });
 
-    props.onReady({
-      getCurrentText: () => editor.state.doc.toString(),
+    const getCurrentText = () => editor.state.doc.toString();
+
+    codeEditorApi = {
+      getCurrentText,
       clearErrors: () => {
         editor.dispatch({ effects: [ clearErrors.of(null) ]});
+      },
+      getPrettyAst: () => {
+        const text = getCurrentText();
+        const parsed = langSupport.language.parser.parse(text);
+        return printTree(parsed, text);
       },
       addError: (error) => {
         editor.dispatch({ effects: [ addError.of(error) ]});
@@ -61,10 +93,17 @@ export const CodeEditor = (props: CodeEditorProps) => {
         if(col - 1 <= len) { return from + (col - 1); }
         else               { return null;             }
       }
-    });
+    };
+
+    props.onReady(codeEditorApi);
   })
 
-  return (<div ref={editorElt}></div>);
+  return (<div>
+    <div ref={editorElt}></div>
+    <div>
+      <button onClick={printLezerAst}>Lezer AST</button>
+    </div>
+  </div>);
 }
 
 ////////////////////////////////////////////////////////////

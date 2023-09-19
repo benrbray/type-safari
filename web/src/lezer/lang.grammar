@@ -1,4 +1,16 @@
-@top Program { expr }
+@top ExprLang { expr }
+
+@top TypeLang { type }
+
+@top UnifLang { Constraint+ }
+
+Constraint {
+  constraintEq       { type symb<"==", "constraintOp"> type } |
+  constraintInstImpl { type symb<"<:", "constraintOp"> type } |
+  constraintInstExpl { type symb<"<<", "constraintOp"> type }
+}
+
+////////////////////////////////////////////////////////////
 
 @precedence {
   highprec,
@@ -12,6 +24,7 @@
 
 kw<term>   { @specialize[@name={term}]<lowerIdent, term> }
 sym<term>  { @specialize[@name={term}]<symbols, term> }
+symb<term, name>  { @specialize[@name={name}]<symbols, term> }
 _sym<term> { @specialize<symbols, term> }
 
 parens<rule> { "(" rule ")" }
@@ -37,7 +50,7 @@ type {
   TypeCon |
   TypeArr |
   parens<type> |
-  forall TypeVar+ ForallDot type
+  Forall { forall TypeVar+ ForallDot type }
 }
 
 TypeArr { type !type arrow type }
@@ -105,17 +118,17 @@ literal {
   digit { std.digit }
   
   /* named identifiers */
-  underline {"_"}
+  underline { "_" }
   small { std.asciiLowercase | underline}
   large { std.asciiUppercase } 
   identchar { (small | large | digit) }
   ident      { identchar+  }
-  lowerIdent { small ident }
-  upperIdent { large ident }
+  lowerIdent { small ident? }
+  upperIdent { large ident? }
   
   /* symbols */
   symbol { "+" | "-" | "*" | "/" |
-           "<" | ">" | "=" |
+           "<" | ">" | "=" | ":"
            "#" | "?" | "@" |
            "\\" | "λ" | "∀" |
            "." | "," | "?" }

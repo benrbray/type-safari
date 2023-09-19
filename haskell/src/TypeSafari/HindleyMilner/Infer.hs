@@ -464,10 +464,6 @@ infer expr@(InF ex) = ((annot expr) =<<) $ visit expr >> case ex of
 
 type MonadSolve m = (MonadTypeError m, MonadDebug m, MonadFresh m)
 
--- TODO more gracefully pass freshCounter
--- runSolve :: Int -> Solve a -> Either TypeError a
--- runSolve freshCounter (Solve s) = runIdentity . (`Control.Monad.Trans.State.evalStateT` freshCounter) . runExceptT $ s
-
 solve :: (MonadSolve m) => [Constraint] -> m SubstMV
 solve constrs = do
   debug "UNIFICATION"

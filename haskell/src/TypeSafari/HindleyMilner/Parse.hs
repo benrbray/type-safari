@@ -152,6 +152,8 @@ nameP = (do
 --     opTable :: [[Operator Parser Type]]
 --     opTable = [ [ InfixR (TypeArr <$ _arrow) ] ]
 
+---- constraints -------------------------------------------
+
 ---- expressions -------------------------------------------
 
 letExprP :: Parser LocatedExpr
