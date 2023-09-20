@@ -28,7 +28,7 @@ data BinOp
 data ExprF s a
   = Var s Name           -- term variable
   | Lit s Lit            -- literal
-  | App s a a            -- applicatoin
+  | App s a a            -- application
   | Lam s (s, Name) a    -- lambda abstraction
   | Let s (s, Name) a a  -- let x = e1 in e2
   | If s a a a           -- if then else

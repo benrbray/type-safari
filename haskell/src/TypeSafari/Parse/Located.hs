@@ -150,7 +150,11 @@ liftCharPredicate p = p . cwpChar
 isSpace :: CharWithPos -> Bool
 isSpace = liftCharPredicate C.isSpace
 isAlpha :: CharWithPos -> Bool
-isAlpha = liftCharPredicate C.isAlphaNum
+isAlpha = liftCharPredicate C.isAlpha
+isUpper :: CharWithPos -> Bool
+isUpper = not . isLower
+isLower :: CharWithPos -> Bool
+isLower = liftCharPredicate C.isAsciiLower
 isAlphaNum :: CharWithPos -> Bool
 isAlphaNum = liftCharPredicate C.isAlphaNum
 
