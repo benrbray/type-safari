@@ -142,9 +142,9 @@ integerP = (do
   return . InF $ Stx.Lit s (Stx.LInt int)) <?> "integer"
 
 boolP :: Parser Stx.LocatedExpr
-boolP = do
+boolP = (do
   (s, b) <- withSpan $ MP.choice [ True <$ _True, False <$ _False ]
-  return . InF $ Stx.Lit s (Stx.LBool b)
+  return . InF $ Stx.Lit s (Stx.LBool b)) <?> "boolean"
 
 --------------------------------------------------------------------------------
 
