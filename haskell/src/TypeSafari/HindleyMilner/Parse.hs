@@ -1,4 +1,4 @@
-module TypeSafari.HindleyMilner.ParseV2 where
+module TypeSafari.HindleyMilner.Parse where
 
 import Control.Applicative hiding (some, many)
 
