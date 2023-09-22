@@ -25,24 +25,24 @@ import TypeSafari.HindleyMilner.Syntax qualified as Stx
 -- import TypeSafari.HindleyMilner.Infer (Type(..), TV (TvBound), MV (MV))
 -- import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.RecursionSchemes.Mu (Mu(..))
-import TypeSafari.Parse.Span (Span(..), PosOffset(..), OffsetSpan)
+import TypeSafari.Parse.Span (Span(..), Pos(..), Span)
 import Control.Monad.State (State, MonadState (..), evalState)
 
 
 ------------------------------------------------------------
 
-type Parser = MP.ParsecT Void Text (State PosOffset)
+type Parser = MP.ParsecT Void Text (State Pos)
 
-putNonSpacePos :: PosOffset -> Parser ()
+putNonSpacePos :: Pos -> Parser ()
 putNonSpacePos = put
 
-getNonSpacePos :: Parser PosOffset
+getNonSpacePos :: Parser Pos
 getNonSpacePos = get
 
-getOffset :: Parser PosOffset
-getOffset = PosOffset . MP.stateOffset <$> MP.getParserState
+getOffset :: Parser Pos
+getOffset = Pos . MP.stateOffset <$> MP.getParserState
 
-withSpan :: Parser a -> Parser (OffsetSpan, a)
+withSpan :: Parser a -> Parser (Span, a)
 withSpan p = do
   p0 <- getOffset
   foo <- p
@@ -230,7 +230,7 @@ ifExprP = (do
 spineP :: Parser Stx.LocatedExpr
 spineP = (snd . foldl1 app) <$> MP.some (withSpan simpleExprP)
   where
-    app :: (OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr)
+    app :: (Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr)
     app (Span p1 _, e1) (Span _ p2, e2) = (s12, InF $ Stx.App s12 e1 e2)
       where s12 = Span p1 p2
 
@@ -271,7 +271,7 @@ arithExprP = snd <$> makeExprParser (withSpan termP) opTable
       , variableP
       , integerP
       ]
-    opTable :: [[Operator Parser (OffsetSpan, Stx.LocatedExpr)]]
+    opTable :: [[Operator Parser (Span, Stx.LocatedExpr)]]
     opTable =
       [ [ binary "*" (combine Stx.Mul)
         ]
@@ -279,10 +279,10 @@ arithExprP = snd <$> makeExprParser (withSpan termP) opTable
         , binary "-" (combine Stx.Sub)
         ]
       ]
-    combine :: Stx.BinOp -> (OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr)
+    combine :: Stx.BinOp -> (Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr)
     combine op (Span p1 _, e1) (Span _ p2, e2) = (s12, InF $ Stx.Bin op s12 e1 e2)
       where s12 = Span p1 p2
-    binary :: Text -> ((OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr) -> (OffsetSpan, Stx.LocatedExpr)) -> Operator Parser (OffsetSpan, Stx.LocatedExpr)
+    binary :: Text -> ((Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr) -> (Span, Stx.LocatedExpr)) -> Operator Parser (Span, Stx.LocatedExpr)
     binary name f = InfixL  (f <$ symbol name)
 
 ------------------------------------------------------------
@@ -325,7 +325,7 @@ makeError peb = ParseError errors
 
 parse :: Text -> Either ParseError ParseResult
 parse t =
-  case evalState result (PosOffset 0) of
+  case evalState result (Pos 0) of
     Left peb -> Left $ makeError peb
     Right expr -> Right $ ParseResult expr
   where result = MP.runParserT ((MP.optional scn) *> exprP <* MP.eof) "[filename]" t

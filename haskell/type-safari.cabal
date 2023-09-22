@@ -99,8 +99,6 @@ common type-safari
     TypeSafari.HindleyMilner.Syntax
     TypeSafari.HindleyMilner.Syntax.Concrete
     TypeSafari.Pretty
-    TypeSafari.Parse.Located
-    TypeSafari.Parse.Example
     TypeSafari.Parse.Span
     TypeSafari.RecursionSchemes.Mu
 

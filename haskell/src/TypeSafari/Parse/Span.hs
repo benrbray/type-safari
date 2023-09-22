@@ -6,12 +6,12 @@ import Data.Aeson.Types (ToJSON (..), listValue, Value (..))
 
 ------------------------------------------------------------
 
-newtype PosOffset = PosOffset {
-    posOffset :: Int
-  } deriving stock (Eq, Ord)
+newtype Pos
+  = Pos Int
+  deriving stock (Eq, Ord)
 
-instance Pretty PosOffset where
-  pretty (PosOffset p) = show p
+instance Pretty Pos where
+  pretty (Pos p) = show p
 
 data PosLineCol = PosLineCol
   { posLine :: !Int
@@ -22,33 +22,27 @@ instance Pretty PosLineCol where
   pretty :: PosLineCol -> Text
   pretty PosLineCol{..} = "l" <> show posLine <> "c" <> show posCol
 
-data Span p = Span
-  { spanStart :: p
-  , spanEnd   :: p
+data Span = Span
+  { spanStart :: Pos
+  , spanEnd   :: Pos
   } deriving stock (Eq, Ord)
 
 
-instance Pretty p => Pretty (Span p) where
-  pretty :: Span p -> Text
+instance Pretty Span where
+  pretty :: Span -> Text
   pretty Span{..} =
     "[" <> pretty spanStart <> "-" <> pretty spanEnd <> "]"
 
-type OffsetSpan = Span PosOffset
-type LineColSpan = Span PosLineCol
+emptySpan :: Span
+emptySpan = Span (Pos 0) (Pos 0)
 
-emptyLineColSpan :: Span PosLineCol
-emptyLineColSpan = Span (PosLineCol 0 0) (PosLineCol 0 0)
-
-emptyOffsetSpan :: Span PosOffset
-emptyOffsetSpan = Span (PosOffset 0) (PosOffset 0)
-
-instance ToJSON (OffsetSpan) where
-  toJSON (Span (PosOffset a) (PosOffset b)) =
+instance ToJSON (Span) where
+  toJSON (Span (Pos a) (Pos b)) =
     listValue id [Number (fromIntegral a), Number (fromIntegral b)]
 
 ------------------------------------------------------------
 
-class HasSpan p m where
-  getSpan :: m -> Span p
-  withSpan :: m -> (Span p, m)
+class HasSpan m where
+  getSpan :: m -> Span
+  withSpan :: m -> (Span, m)
   withSpan = toFst getSpan

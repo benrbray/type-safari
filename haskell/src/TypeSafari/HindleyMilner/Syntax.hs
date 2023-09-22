@@ -5,7 +5,7 @@ import Data.Aeson
 import TypeSafari.Core
 import TypeSafari.Pretty
 import TypeSafari.RecursionSchemes.Mu (Mu(..), cata)
-import TypeSafari.Parse.Span (HasSpan (..), Span(..), OffsetSpan)
+import TypeSafari.Parse.Span (HasSpan (..), Span(..), Span)
 
 --------------------------------------------------------------------------------
 
@@ -40,7 +40,7 @@ type Expr s = Mu (ExprF s)
 
 type Expr0 = Expr ()
 
-type LocatedExpr = Expr OffsetSpan
+type LocatedExpr = Expr Span
 
 -- forget all annotations in the syntax tree
 forget :: Expr s -> Expr0
@@ -93,7 +93,7 @@ pattern EOther <- (simplify -> SOther)
 
 ------------------------------------------------------------
 
-instance HasSpan p (Expr (Span p)) where
+instance HasSpan (Expr Span) where
   getSpan (InF (Var s _)) = s
   getSpan (InF (Lit s _)) = s
   getSpan (InF (Bin _ s _ _)) = s
@@ -136,10 +136,10 @@ instance ToJSON Name where
   toJSON :: Name -> Value
   toJSON n = String (pretty n)
 
-instance ToJSON (Expr OffsetSpan) where
+instance ToJSON (Expr Span) where
   toJSON = cata f
     where
-      f :: ExprF OffsetSpan Value -> Value
+      f :: ExprF Span Value -> Value
       f (Var s t) = object [
           "tag"  .= ("Var" :: Text)
         , "span" .= toJSON s
