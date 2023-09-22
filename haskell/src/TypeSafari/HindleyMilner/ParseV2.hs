@@ -26,12 +26,18 @@ import TypeSafari.HindleyMilner.Syntax qualified as Stx
 -- import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.RecursionSchemes.Mu (Mu(..))
 import TypeSafari.Parse.Span (Span(..), PosOffset(..), OffsetSpan)
+import Control.Monad.State (State, MonadState (..), evalState)
 
 
 ------------------------------------------------------------
 
-type Parser = MP.Parsec Void Text
-type ParserLoc a = Parser (a, PosOffset)
+type Parser = MP.ParsecT Void Text (State PosOffset)
+
+putNonSpacePos :: PosOffset -> Parser ()
+putNonSpacePos = put
+
+getNonSpacePos :: Parser PosOffset
+getNonSpacePos = get
 
 getOffset :: Parser PosOffset
 getOffset = PosOffset . MP.stateOffset <$> MP.getParserState
@@ -40,23 +46,10 @@ withSpan :: Parser a -> Parser (OffsetSpan, a)
 withSpan p = do
   p0 <- getOffset
   foo <- p
-  p1 <- getOffset
+  p1 <- getNonSpacePos
   return (Span p0 p1, foo)
 
-------------------------------------------------------------
-
--- Augment a parser with a source span.
-spanned :: Parser (a, PosOffset) -> Parser (OffsetSpan, a)
-spanned parser = do
-  start <- getOffset
-  (x, end) <- parser
-  pure (Span start end, x)
-
--- Consume whitespace following a lexeme, but record
--- its endpoint as being before the whitespace.
--- https://stackoverflow.com/a/59416955/1444650
-lexeme :: Parser a -> Parser (a, PosOffset)
-lexeme parser = (,) <$> parser <*> (getOffset <* scn)
+---- whitespace --------------------------------------------
 
 -- spaces and newlines
 scn :: Parser ()
@@ -72,72 +65,81 @@ sc = L.space whitespace lineComment empty
     whitespace = (void $ MP.some (char ' ' <|> char '\t'))
     lineComment = L.skipLineComment "--"
 
--- lexeme :: Parser a -> Parser a
--- lexeme = L.lexeme scn -- TODO sc not scn
--- {-# INLINEABLE lexeme #-}
+---- terminals ---------------------------------------------
+
+-- Note: all terminals should be built from @lexeme@, so
+-- that source spans are properly computed.
+
+-- consume a lexeme and trailing whitespace, but record
+-- the position before the whitespace in the parse state
+lexeme :: Parser a -> Parser a
+lexeme parser = do
+  x <- parser
+  putNonSpacePos =<< getOffset <* scn
+  return x
 
 symbol ::
   Text ->  -- symbol to parse
-  ParserLoc Text
+  Parser Text
 symbol = lexeme . MP.string
 {-# INLINEABLE symbol #-}
 
 --------------------------------------------------------------------------------
 
-_backslash :: ParserLoc Text
+_backslash :: Parser Text
 _backslash = symbol "\\"
 
-_arrow :: ParserLoc Text
+_arrow :: Parser Text
 _arrow = symbol "->"
 
-_forall :: ParserLoc Text
+_forall :: Parser Text
 _forall = symbol "forall"
 
-_forallUnicode :: ParserLoc Text
+_forallUnicode :: Parser Text
 _forallUnicode = symbol "∀"
 
-_comma :: ParserLoc Text
+_comma :: Parser Text
 _comma = symbol ","
 
-_questionMark :: ParserLoc Text
+_questionMark :: Parser Text
 _questionMark = symbol "?"
 
-_let :: ParserLoc Text
+_let :: Parser Text
 _let = symbol "let"
 
-_in :: ParserLoc Text
+_in :: Parser Text
 _in = symbol "in"
 
-_if :: ParserLoc Text
+_if :: Parser Text
 _if = symbol "if"
 
-_then :: ParserLoc Text
+_then :: Parser Text
 _then = symbol "then"
 
-_else :: ParserLoc Text
+_else :: Parser Text
 _else = symbol "else"
 
-_True :: ParserLoc Text
+_True :: Parser Text
 _True = symbol "True"
 
-_False :: ParserLoc Text
+_False :: Parser Text
 _False = symbol "False"
 
-_equal :: ParserLoc Text
+_equal :: Parser Text
 _equal = symbol "="
 
-_leftparen :: ParserLoc Text
+_leftparen :: Parser Text
 _leftparen = symbol "("
 
-_rightparen :: ParserLoc Text
+_rightparen :: Parser Text
 _rightparen = symbol ")"
 
 --------------------------------------------------------------------------------
 
 integerP :: Parser Stx.LocatedExpr
-integerP = do
-  (s, int) <- spanned (lexeme L.decimal)
-  return . InF $ Stx.Lit s (Stx.LInt int)
+integerP = (do
+  (s, int) <- withSpan (lexeme L.decimal)
+  return . InF $ Stx.Lit s (Stx.LInt int)) <?> "integer"
 
 boolP :: Parser Stx.LocatedExpr
 boolP = do
@@ -146,11 +148,11 @@ boolP = do
 
 --------------------------------------------------------------------------------
 
-nameP :: Parser (Stx.Name, PosOffset)
-nameP = nameP1 >>= mapFstA check
+nameP :: Parser Stx.Name
+nameP = nameP1 >>= check
   where
     nameP0 = (:) <$> MP.letterChar <*> MP.many MP.alphaNumChar <?> "variable"
-    nameP1 = mapFst T.pack <$> lexeme nameP0
+    nameP1 = T.pack <$> lexeme nameP0
     check :: Text -> Parser Stx.Name
     check s =
       if s `elem` reserved
@@ -161,7 +163,7 @@ nameP = nameP1 >>= mapFstA check
 
 variableP :: Parser Stx.LocatedExpr
 variableP = MP.try $ do
-  (sx,x) <- spanned nameP
+  (sx,x) <- withSpan nameP
   return . InF $ Stx.Var sx x
 
 parens :: Parser a -> Parser a
@@ -209,19 +211,12 @@ parens = MP.between (symbol "(") (symbol ")")
 letExprP :: Parser Stx.LocatedExpr
 letExprP = (do
   p0      <- getOffset
-  (sx, x) <- spanned (_let *> nameP)
+  (sx, x) <- (_let *> withSpan nameP)
   expr    <- (_equal *> simpleExprP)
   body    <- (_in *> exprP)
-  p1      <- getOffset
+  p1      <- getNonSpacePos
   return . InF $ Stx.Let (Span p0 p1) (sx,x) expr body
   ) <?> "let"
-
-wrapSpan :: (OffsetSpan -> a -> b) -> Parser a -> Parser b
-wrapSpan f p = do
-  p0 <- getOffset
-  r  <- p
-  p1 <- getOffset
-  return (f (Span p0 p1) r)
 
 ifExprP :: Parser Stx.LocatedExpr
 ifExprP = (do
@@ -229,7 +224,7 @@ ifExprP = (do
   econ <- (_if *> simpleExprP)
   etru <- (_then *> simpleExprP)
   efls <- (_else *> simpleExprP)
-  p1   <- getOffset
+  p1   <- getNonSpacePos
   return . InF $ Stx.If (Span p0 p1) econ etru efls)  <?> "if-then-else"
 
 spineP :: Parser Stx.LocatedExpr
@@ -243,9 +238,9 @@ lamP :: Parser Stx.LocatedExpr
 lamP = (do
     p0     <- getOffset
     _      <- _backslash
-    (sx,x) <- spanned nameP
+    (sx,x) <- withSpan nameP
     body   <- (_arrow *> exprP)
-    p1     <- getOffset
+    p1     <- getNonSpacePos
     return $ InF $ Stx.Lam (Span p0 p1) (sx,x) body
   ) <?> "lambda"
 
@@ -330,10 +325,10 @@ makeError peb = ParseError errors
 
 parse :: Text -> Either ParseError ParseResult
 parse t =
-  case result of
+  case evalState result (PosOffset 0) of
     Left peb -> Left $ makeError peb
     Right expr -> Right $ ParseResult expr
-  where result = MP.runParser ((MP.optional scn) *> exprP <* MP.eof) "[filename]" t
+  where result = MP.runParserT ((MP.optional scn) *> exprP <* MP.eof) "[filename]" t
 
 ------------------------------------------------------------
 
