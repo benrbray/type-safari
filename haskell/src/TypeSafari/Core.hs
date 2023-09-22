@@ -11,7 +11,9 @@ module TypeSafari.Core (
   toFst,
   toSnd,
   mapFst,
-  mapSnd
+  mapSnd,
+  mapFstA,
+  mapSndA
 ) where
 
 import Prelude hiding (Show, show, span)
@@ -38,3 +40,9 @@ mapFst f (x,y) = (f x, y)
 
 mapSnd :: (b -> c) -> (a,b) -> (a, c)
 mapSnd f (x,y) = (x, f y)
+
+mapFstA :: Applicative m => (a -> m c) -> (a,b) -> m (c,b)
+mapFstA f (x,y) = (,y) <$> f x
+
+mapSndA :: Applicative m => (b -> m c) -> (a,b) -> m (a,c)
+mapSndA f (x,y) = (x,) <$> f y

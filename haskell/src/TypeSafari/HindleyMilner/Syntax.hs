@@ -56,6 +56,43 @@ forget = cata (InF . f)
 
 ------------------------------------------------------------
 
+data Simple
+  = SVar Name
+  | SApp Simple Simple
+  | SLam Name Simple
+  | SOther
+
+class SimpleExpr e where
+  simplify :: e -> Simple
+
+instance SimpleExpr (Expr s) where
+  simplify (InF (Var _ x)) = SVar x
+  simplify (InF (App _ e1 e2)) = SApp (simplify e1) (simplify e2)
+  simplify (InF (Lam _ (_,x) e)) = SLam x (simplify e)
+  simplify _ = SOther
+
+pattern EVar :: SimpleExpr e => Name -> e
+pattern EVar x <- (simplify -> SVar x)
+
+pattern EApp :: SimpleExpr e => Simple -> Simple -> e
+pattern EApp e1 e2 <- (simplify -> SApp e1 e2)
+
+pattern ELam :: SimpleExpr e => Name -> Simple -> e
+pattern ELam x ebody <- (simplify -> SLam x ebody)
+
+pattern EOther :: SimpleExpr e => e
+pattern EOther <- (simplify -> SOther)
+
+{-# COMPLETE EVar, EApp, ELam, EOther #-}
+
+-- foo :: SimpleExpr e => e -> Text
+-- foo (EVar x) = "var"
+-- foo (EApp e1 e2) = "app"
+-- foo (ELam x e) = "lam"
+-- foo (EOther) = "other"
+
+------------------------------------------------------------
+
 instance HasSpan p (Expr (Span p)) where
   getSpan (InF (Var s _)) = s
   getSpan (InF (Lit s _)) = s

@@ -9,7 +9,7 @@ import GHC.Generics
 import Data.Text (Text)
 import Prelude
 
-import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..), ParseError)
+import TypeSafari.HindleyMilner.ParseV2 (parse, ParseResult (..), ParseError)
 import TypeSafari.HindleyMilner.Syntax as Stx
 
 --------------------------------------------------------------------------------

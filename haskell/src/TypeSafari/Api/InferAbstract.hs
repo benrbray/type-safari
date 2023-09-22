@@ -10,7 +10,7 @@ import GHC.Generics
 
 import TypeSafari.Core
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
-import TypeSafari.HindleyMilner.Parse (parse, ParseResult (..), ParseError)
+import TypeSafari.HindleyMilner.ParseV2 (parse, ParseResult (..), ParseError)
 import TypeSafari.HindleyMilner.Infer (SubstMV)
 import TypeSafari.Pretty (Pretty(..))
 import TypeSafari.HindleyMilner.Infer.Abstract (hindleyMilner, Result (..))

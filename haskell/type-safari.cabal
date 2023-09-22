@@ -95,8 +95,10 @@ common type-safari
     TypeSafari.FFI.Util
     TypeSafari.HindleyMilner.Infer
     TypeSafari.HindleyMilner.Infer.Abstract
-    TypeSafari.HindleyMilner.Parse
+    TypeSafari.HindleyMilner.ParseV1
+    TypeSafari.HindleyMilner.ParseV2
     TypeSafari.HindleyMilner.Syntax
+    TypeSafari.HindleyMilner.Syntax.Concrete
     TypeSafari.Pretty
     TypeSafari.Parse.Located
     TypeSafari.Parse.Example
