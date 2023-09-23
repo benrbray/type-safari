@@ -1,5 +1,5 @@
 import { assert, _ } from "spec.ts";
-import { Expr } from "../syntax/Expr";
+import { Expr, Type } from "../syntax/Expr";
 
 export type Tag<T extends string> = { tag: T };
 
@@ -35,12 +35,12 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 
 /* ---- response ---------------------------------------- */
 
-type OutputError
+export type OutputError
 	= OutputParseError
 	| OutputTypeError
 	| OutputUnknownError
 
-type OutputParseError = {
+export type OutputParseError = {
 	tag: "OutputParseError",
 	contents: {
 		errors: [{
@@ -51,12 +51,12 @@ type OutputParseError = {
 	}
 }
 
-type OutputTypeError = {
+export type OutputTypeError = {
 	tag: "OutputTypeError"
 	contents: string
 }
 
-type OutputUnknownError = {
+export type OutputUnknownError = {
 	tag: "OutputUnknownError"
 	contents: string
 }
@@ -70,12 +70,12 @@ export interface WorkerResultData {
 		outputError?: OutputError|undefined
 	},
 	"runParseType" : {
-		outputType?: any|undefined
+		outputType?: Type |undefined
 		outputError?: OutputError|undefined
 	},
 	"runInferAbstract" : {
-		outputExpr?: any|undefined
-		outputType?: any|undefined
+		outputExpr?: Expr |undefined
+		outputType?: string | undefined
 		outputError?: OutputError|undefined
 		outputConstraints?: string[],
 		outputSubst?: { [typeVar:string] : string }|undefined

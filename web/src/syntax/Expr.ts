@@ -9,6 +9,53 @@ const contains = ([a1,a2]: Span, [b1,b2]: Span): boolean => {
 
 ////////////////////////////////////////////////////////////
 
+export type LocatedTree<T extends HasSpan> = {
+  tree: T
+  subTrees: (node: T) => T[]
+}
+
+/** Returns the smallest subexpression containing the given range. */ 
+export const treeSpanQuery = <T extends HasSpan>(query: [number,number], tree: LocatedTree<T>): T => {
+  const { tree: root, subTrees } = tree;
+
+  function helper(query: [number,number], node: T): T {
+    // check if any subexpr contains query
+    for(let subNode of subTrees(node)) {
+      if(contains(subNode.span, query)) {
+        return helper(query, subNode);
+      }
+    }
+    // otherwise return current node
+    return node;
+  }
+
+  return helper(query, root);
+}
+
+////////////////////////////////////////////////////////////
+
+export type Type
+  = TypeVar
+  | TypeMetaVar
+  | TypeCon
+  | TypeArr
+
+export type TypeVar     = HasSpan & { tag: "TypeVar",     name: string };
+export type TypeMetaVar = HasSpan & { tag: "TypeMetaVar", name: string };
+export type TypeCon     = HasSpan & { tag: "TypeCon",     name: string };
+export type TypeArr     = HasSpan & {
+  tag: "TypeArr",
+  t1: Type,
+  t2: Type
+};
+
+export const typeSubExprs = (t: Type): Type[] => {
+  if(t.tag === "TypeArr") { return [t.t1, t.t2]; }
+  else                    { return [];           }
+}
+
+////////////////////////////////////////////////////////////
+
 export type Expr    = Var | Lit | LamExpr | LetExpr | BinExpr | IfExpr | App;
 
 export type Var = HasSpan & { tag: "Var", name: string };
@@ -45,46 +92,34 @@ export type IfExpr = HasSpan & {
 ////////////////////////////////////////////////////////////
 
 /** Given an expression, returns its nested subexpressions. */
-const subExprs = (e: Expr): [Span, Expr][] => {
+export const exprSubTerms = (e: Expr): Expr[] => {
   if(e.tag === "BinExpr") {
     return [
-      [e.left.span, e.left],
-      [e.right.span, e.right],
+      e.left,
+      e.right,
     ];
   } else if(e.tag === "LetExpr") {
     return [
       /* TODO Name is not an expr, so return what? */
-      [e.equal.span, e.equal],
-      [e.in.span, e.in],
+      e.equal,
+      e.in,
     ];
   } else if(e.tag === "LamExpr") {
     return [
       /* TODO Name is not an expr, so return what? */
-      [e.body.span, e.body]
+      e.body
     ];
   } else if(e.tag === "IfExpr") {
     return [
-      [e.econ.span, e.econ],
-      [e.etru.span, e.etru],
-      [e.efls.span, e.efls]
+      e.econ,
+      e.etru,
+      e.efls
     ];
   } else if(e.tag === "App") {
     return [
-      [e.e1.span, e.e1],
-      [e.e2.span, e.e2]
+      e.e1,
+      e.e2
     ];
   }
   return [];
-}
-
-/** Returns the smallest subexpression containing the given range. */ 
-export const subexprAt = (query: [number,number], node: Expr): Expr => {
-  for(let [nodeSpan, subNode] of subExprs(node)) {
-    if(contains(nodeSpan, query)) {
-      return subexprAt(query, subNode);
-    }
-  }
-
-  // by default, return current node
-  return node;
 }

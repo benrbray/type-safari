@@ -8,8 +8,8 @@ import Data.Aeson
 import GHC.Generics
 import Data.Text (Text)
 import Prelude
-
--- import TypeSafari.HindleyMilner.Parse (parseType, ParseTypeResult (..))
+import TypeSafari.HindleyMilner.Parse (parseType, ParseTypeResult (..), ParseError)
+import TypeSafari.HindleyMilner.Syntax.Concrete (LocatedType)
 
 --------------------------------------------------------------------------------
 
@@ -20,32 +20,37 @@ newtype Input = Input {
   deriving anyclass FromJSON
 
 data Output = Output {
-    outputType :: Maybe Text,
-    outputError :: Maybe Text
+    outputType :: Maybe LocatedType,
+    outputError :: Maybe OutputError
   }
-  deriving stock (Show, Generic)
+  deriving stock (Generic)
   deriving anyclass ToJSON
+
+data OutputError
+  = OutputParseError ParseError
+  | OutputUnknownError Text
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
 
 --------------------------------------------------------------------------------
 
 run :: Input -> IO Output
-run _ = pure $ Output Nothing Nothing
--- run Input{..} = pure $
---   case parseType inputText of
---     Left err ->
---       Output {
---         outputType = Nothing,
---         outputError = Just err
---       }
---     Right ParseTypeResult{ parsedType } ->
---       Output {
---         outputType = Just $ pretty parsedType,
---         outputError = Nothing
---       }
+run Input{..} = pure $
+  case parseType inputText of
+    Left err ->
+      Output {
+        outputType = Nothing,
+        outputError = Just (OutputParseError err)
+      }
+    Right ParseTypeResult{ parsedType } ->
+      Output {
+        outputType = Just parsedType,
+        outputError = Nothing
+      }
 
 dispError :: Text -> Output
 dispError t =
   Output {
     outputType = Nothing,
-    outputError = Just t
+    outputError = Just (OutputUnknownError t)
   }

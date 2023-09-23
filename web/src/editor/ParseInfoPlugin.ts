@@ -2,7 +2,7 @@
 import { EditorView } from "codemirror";
 import { ViewPlugin, Decoration, DecorationSet, ViewUpdate } from "@codemirror/view";
 import { SelectionRange } from "@codemirror/state";
-import { Expr } from "../syntax/Expr";
+import { HasSpan } from "../syntax/Expr";
 
 ////////////////////////////////////////////////////////////
 
@@ -10,7 +10,7 @@ const underlineMark = Decoration.mark({class: "cm-underline"});
 
 export function parseTreePlugin(
   notifyDocChanged: () => void,
-  infoAt: (selection: SelectionRange) => Expr | null
+  infoAt: (selection: SelectionRange) => HasSpan | null
 ) {
   const plugin = ViewPlugin.fromClass(class {
     decorations: DecorationSet;

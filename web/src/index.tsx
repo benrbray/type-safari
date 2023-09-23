@@ -4,7 +4,7 @@ import WasmWorker from "./worker/worker?url"
 
 import './index.css'
 import { createSignal } from 'solid-js';
-import { OpName, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
+import { OpName, OutputError, WorkerRequest, WorkerRequestData, WorkerResponse, WorkerResult } from './worker/workerApi';
 
 // codemirror
 import { SelectionRange } from "@codemirror/state";
@@ -17,7 +17,7 @@ import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 import AnsiColor from "ansi-to-html";
 import dedent from "dedent-js";
 import { parseTreePlugin } from './editor/ParseInfoPlugin';
-import { Expr, subexprAt } from './syntax/Expr';
+import { Expr, HasSpan, LocatedTree, Type, exprSubTerms, treeSpanQuery, typeSubExprs } from './syntax/Expr';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,23 +107,6 @@ const workerApi = {
 
 const root = document.getElementById('root');
 
-// const TypeParse = () => {
-//   const [userText, setUserText]     = createSignal<string>("");
-//   const [resultType, setResultType] = createSignal<string>("");
-
-//   const handleChange = async (value: string) => {
-//     console.log("change");
-//     setUserText(value);
-//     const result = await workerApi.runParseType(value);
-//     setResultType(JSON.stringify(result.data.outputType || result.data.outputError));
-//   }
-
-//   return <div>
-//     <textarea onInput={(evt) => { console.log("foo") ; handleChange(evt.target.value)}} value={userText()}></textarea>
-//     <div>{resultType()}</div>
-//   </div>
-// }
-
 const App = function () {
   return (<div class="demo">
     <h1>type-safari</h1>
@@ -138,96 +121,48 @@ const App = function () {
 
 ////////////////////////////////////////////////////////////
 
-const Unification = () => {
-  let codeEditorApi: CodeEditorApi;
-
-  return <div>
-    <CodeEditor
-      lang="unification"
-      onReady={(api) => { codeEditorApi = api }}
-      // extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
-    >
-      {dedent(String.raw`
-        -- fails because lambda-bound variables are monomorphic under Hindley-Milner
-        let const = (\v -> \x -> v) in
-        let f = (\y -> if True then (y 1) else (y True)) in
-        f const
-      `)}
-    </CodeEditor>
-  </div>;
+const debounce = (delay: number, func: () => void): (() => void) => {
+  let timerId: number;
+  const debounced = () => {
+      clearTimeout(timerId);
+      timerId = setTimeout(() => { func(); }, delay);
+  };
+  return debounced;
 }
 
-////////////////////////////////////////////////////////////
+type UpdaterResult<T extends HasSpan>
+  = { tag: "error", error: OutputError }
+  | { tag: "result", tree: LocatedTree<T>
+}
 
-const TypeInference = () => {
-  const [resultExpr, setResultExpr] = createSignal<string>("");
-  const [resultType, setResultType] = createSignal<string>("");
-  const [resultSubst, setResultSubst] = createSignal<string>("");
-  const [resultActions, setResultActions] = createSignal<string>("");
-  const [resultConstraints, setResultConstraints] = createSignal<string[]>([]);
-
-  const [foo, setFoo] = createSignal<string>("");
-
-  // solidJS only renders once, so an ordinary closure is
-  // enough to keep a mutable reference (with no reactivity)
-  let codeEditorApi: CodeEditorApi|null = null;
-
-  const ansiColor = new AnsiColor({ fg: "#000", newline: true });
-
-  const handleClick = async () => {
-    if(!codeEditorApi) { return; }
-
-    const text = codeEditorApi.getCurrentText();
-    const pretty = printTree(parser.parse(text), text);
-    console.log(pretty);
-    setFoo(pretty);
-  
-    const result = await workerApi.runInferAbstract(text);
-
-    console.log("[main]", result);
-
-    let expr =
-      result.data.outputExpr ?
-      JSON.stringify(result.data.outputExpr, undefined, 2) :
-      JSON.stringify(result.data.outputError, undefined, 2);
-    let tp = result.data.outputType || result.data.outputError;
-
-    setResultExpr(expr || "");
-    setResultType(tp);
-    setResultSubst(JSON.stringify(result.data.outputSubst, undefined, 2));
-    setResultActions(result.data.outputActions?.join("\n") || "");
-    setResultConstraints(result.data.outputConstraints || []);
-  }
-
-  let parseTree: Expr | null = null;
-
-  const debounce = (delay: number, func: () => void): (() => void) => {
-    let timerId: number;
-    const debounced = () => {
-        clearTimeout(timerId);
-        timerId = setTimeout(() => { func(); }, delay);
-    };
-    return debounced;
-  }
+function parseTreeUpdater<T extends HasSpan>(
+  getCodeEditorApi: () => CodeEditorApi|null,
+  updater: (text: string) => Promise<UpdaterResult<T>>
+) {
+  // closures to capture state between calls
+  // TODO (Ben @ 2023/09/23)
+  let parseTree: LocatedTree<T> | null = null;
 
   /**
    * Schedule an update of the parse tree.
    */
   const requestUpdateParseTree = debounce(400, async () => {
+    const codeEditorApi = getCodeEditorApi();
     if(!codeEditorApi) { return; }
 
     const text = codeEditorApi.getCurrentText();
-    const result = await workerApi.runInferAbstract(text);
+    const result = await updater(text);
 
     // clear errors
     codeEditorApi.clearErrors();
 
-    if(result.data.outputExpr) {
-      parseTree = result.data.outputExpr;
+    if(result.tag === "result") {
+      parseTree = result.tree;
     } else {
+      // invalidate the current parse tree
       parseTree = null;
 
-      const error = result.data.outputError!;
+      const error = result.error;
       console.warn(error);
 
       if(error.tag === "OutputParseError") {
@@ -261,12 +196,125 @@ const TypeInference = () => {
     requestUpdateParseTree();
   }
 
-  const infoAt = (selection: SelectionRange): Expr|null => {
+  const infoAt = (selection: SelectionRange): T|null => {
     if(parseTree === null) { return null; }
-
     const { from, to } = selection;
-    return subexprAt([from,to], parseTree);
+    return treeSpanQuery([from,to], parseTree);
   }
+
+  return {
+    handleDocChanged,
+    infoAt
+  };
+}
+
+const Unification = () => {
+  let codeEditorApi: CodeEditorApi;
+
+  const { handleDocChanged, infoAt }
+  = parseTreeUpdater(
+      () => codeEditorApi,
+      async (text: string): Promise<UpdaterResult<Type>> => {
+        const result = await workerApi.runParseType(text);
+
+        if(result.data.outputType) {
+          console.log(result.data.outputType);
+          return {
+            tag: "result",
+            tree: {
+              subTrees: typeSubExprs,
+              tree: result.data.outputType
+            }
+          };
+        } else {
+          return {
+            tag: "error",
+            error: result.data.outputError!
+          };
+        }
+      }
+  );
+
+  return <div>
+    <CodeEditor
+      lang="unification"
+      onReady={(api) => { codeEditorApi = api }}
+      extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
+    >
+      {dedent(String.raw`
+        -- fails because lambda-bound variables are monomorphic under Hindley-Milner
+        let const = (\v -> \x -> v) in
+        let f = (\y -> if True then (y 1) else (y True)) in
+        f const
+      `)}
+    </CodeEditor>
+  </div>;
+}
+
+////////////////////////////////////////////////////////////
+
+const TypeInference = () => {
+  const [resultExpr, setResultExpr] = createSignal<string>("");
+  const [resultType, setResultType] = createSignal<string>("");
+  const [resultSubst, setResultSubst] = createSignal<string>("");
+  const [resultActions, setResultActions] = createSignal<string>("");
+  const [resultConstraints, setResultConstraints] = createSignal<string[]>([]);
+
+  const [foo, setFoo] = createSignal<string>("");
+
+  // solidJS only renders once, so an ordinary closure is
+  // enough to keep a mutable reference (with no reactivity)
+  let codeEditorApi: CodeEditorApi|null = null;
+  // let parseTree: Expr | null = null;
+
+  const handleClick = async () => {
+    if(!codeEditorApi) { return; }
+
+    const text = codeEditorApi.getCurrentText();
+    const pretty = printTree(parser.parse(text), text);
+    console.log(pretty);
+    setFoo(pretty);
+  
+    const result = await workerApi.runInferAbstract(text);
+
+    console.log("[main]", result);
+
+    let expr =
+      result.data.outputExpr ?
+      JSON.stringify(result.data.outputExpr, undefined, 2) :
+      JSON.stringify(result.data.outputError, undefined, 2);
+    let tp = result.data.outputType;
+
+    setResultExpr(expr || "");
+    setResultType(tp || "");
+    setResultSubst(JSON.stringify(result.data.outputSubst, undefined, 2));
+    setResultActions(result.data.outputActions?.join("\n") || "");
+    setResultConstraints(result.data.outputConstraints || []);
+  }
+
+  const { handleDocChanged, infoAt }
+    = parseTreeUpdater(
+        () => codeEditorApi,
+        async (text: string): Promise<UpdaterResult<Expr>> => {
+          const result = await workerApi.runInferAbstract(text);
+          if(result.data.outputExpr) {
+            return {
+              tag: "result",
+              tree: {
+                subTrees: exprSubTerms,
+                tree: result.data.outputExpr
+              }
+            };
+          } else {
+            return {
+              tag: "error",
+              error: result.data.outputError!
+            };
+          }
+        }
+    );
+
+  const ansiColor = new AnsiColor({ fg: "#000", newline: true });
 
   return (<>
     <div class="top">

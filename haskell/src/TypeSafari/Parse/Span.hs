@@ -13,15 +13,6 @@ newtype Pos
 instance Pretty Pos where
   pretty (Pos p) = show p
 
-data PosLineCol = PosLineCol
-  { posLine :: !Int
-  , posCol  :: !Int
-  } deriving stock (Eq, Ord)
-
-instance Pretty PosLineCol where
-  pretty :: PosLineCol -> Text
-  pretty PosLineCol{..} = "l" <> show posLine <> "c" <> show posCol
-
 data Span = Span
   { spanStart :: Pos
   , spanEnd   :: Pos

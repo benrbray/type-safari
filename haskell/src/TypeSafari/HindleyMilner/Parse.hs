@@ -7,7 +7,7 @@ import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Char (char)
 
 import Control.Monad.Combinators.Expr
-  
+
 import Text.Megaparsec ((<?>))
 import Text.Megaparsec      qualified as MP
 import Text.Megaparsec.Char qualified as MP
@@ -22,8 +22,7 @@ import Data.List.NonEmpty qualified as NE
 import GHC.Generics (Generic)
 
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
--- import TypeSafari.HindleyMilner.Infer (Type(..), TV (TvBound), MV (MV))
--- import TypeSafari.Pretty (Pretty(..))
+import TypeSafari.HindleyMilner.Syntax.Concrete qualified as Cst
 import TypeSafari.RecursionSchemes.Mu (Mu(..))
 import TypeSafari.Parse.Span (Span(..), Pos(..), Span)
 import Control.Monad.State (State, MonadState (..), evalState)
@@ -39,12 +38,12 @@ putNonSpacePos = put
 getNonSpacePos :: Parser Pos
 getNonSpacePos = get
 
-getOffset :: Parser Pos
-getOffset = Pos . MP.stateOffset <$> MP.getParserState
+getPos :: Parser Pos
+getPos = Pos . MP.stateOffset <$> MP.getParserState
 
 withSpan :: Parser a -> Parser (Span, a)
 withSpan p = do
-  p0 <- getOffset
+  p0 <- getPos
   foo <- p
   p1 <- getNonSpacePos
   return (Span p0 p1, foo)
@@ -75,7 +74,7 @@ sc = L.space whitespace lineComment empty
 lexeme :: Parser a -> Parser a
 lexeme parser = do
   x <- parser
-  putNonSpacePos =<< getOffset <* scn
+  putNonSpacePos =<< getPos <* scn
   return x
 
 symbol ::
@@ -148,18 +147,38 @@ boolP = (do
 
 --------------------------------------------------------------------------------
 
+failReservedKeyword :: Text -> Parser Text
+failReservedKeyword s =
+  if s `elem` reserved
+    then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
+    else return s
+  where
+    reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
+
+-- TODO (Ben @ 2023/09/23) instead of duplicating the identifier parsers with
+-- different starting char types, just have one catch-all ident parser, and
+-- either 1) choose different constructor based on first char, or
+--        2) fail if first char does not match expected syntactic class
+
 nameP :: Parser Stx.Name
-nameP = nameP1 >>= check
+nameP = Stx.Name <$> (failReservedKeyword . T.pack =<< lexeme nameP0)
   where
     nameP0 = (:) <$> MP.letterChar <*> MP.many MP.alphaNumChar <?> "variable"
-    nameP1 = T.pack <$> lexeme nameP0
-    check :: Text -> Parser Stx.Name
-    check s =
-      if s `elem` reserved
-        then fail $ "keyword " ++ show s ++ " cannot be used as a variable name"
-        else return (Stx.Name s)
-      where 
-        reserved = ["forall", "let", "in", "if", "then", "else", "True", "False"]
+
+lowerIdentP :: Parser Cst.Name
+lowerIdentP = Cst.Name <$> (failReservedKeyword . T.pack =<< lexeme nameP0)
+  where
+    nameP0 = (:) <$> MP.lowerChar <*> MP.many MP.alphaNumChar <?> "lowercase identifier"
+
+upperIdentP :: Parser Cst.Name
+upperIdentP = Cst.Name <$> (failReservedKeyword . T.pack =<< lexeme nameP0)
+  where
+    nameP0 = (:) <$> MP.upperChar <*> MP.many MP.alphaNumChar <?> "uppercase identifier"
+
+metaIdentP :: Parser Cst.Name
+metaIdentP = Cst.Name <$> (failReservedKeyword . T.pack =<< lexeme nameP0)
+  where
+    nameP0 = (:) <$> MP.satisfy (== '?') <*> MP.many MP.alphaNumChar <?> "uppercase identifier"
 
 variableP :: Parser Stx.LocatedExpr
 variableP = MP.try $ do
@@ -172,45 +191,58 @@ parens = MP.between (symbol "(") (symbol ")")
 ---- types -------------------------------------------------
 
 -- -- TODO: validate that type var is bound by a forall
--- typeVarP :: ParserLoc TV
--- typeVarP = mapFst TvBound <$> (lexeme L.decimal) <?> "type variable"
+typeVarP :: Parser Cst.LocatedType
+typeVarP = do
+  p0 <- getPos
+  tv <- lowerIdentP <?> "type variable"
+  p1 <- getNonSpacePos
+  return . InF $ Cst.TypeVar (Span p0 p1) tv
 
--- metaVarP :: Parser MV
--- metaVarP = MV <$> (_questionMark *> nameP) <?> "metavariable"
+metaVarP :: Parser Cst.LocatedType
+metaVarP = do
+  p0 <- getPos
+  tv <- metaIdentP <?> "type metavariable"
+  p1 <- getNonSpacePos
+  return . InF $ Cst.TypeMetaVar (Span p0 p1) tv
 
--- typeConstructorP :: ParserLoc Type
--- typeConstructorP = (do
---   (Stx.Name t, s) <- nameP
---   pure (TypeCon t, s))  <?> "type constructor"
+typeConP :: Parser Cst.LocatedType
+typeConP = do
+  p0 <- getPos
+  tv <- upperIdentP <?> "type constructor"
+  p1 <- getNonSpacePos
+  return . InF $ Cst.TypeCon (Span p0 p1) tv
 
--- typeP :: Parser Type
--- typeP = MP.choice [
---     typeArrowP,
---     parens typeP,
---     TypeVar <$> typeVarP,
---     TypeMetaVar <$> metaVarP,
---     typeConstructorP
---   ]
+typeP :: Parser Cst.LocatedType
+typeP = MP.choice [
+    typeArrowP,
+    parens typeP,
+    typeVarP,
+    metaVarP,
+    typeConP
+  ]
 
 -- arithmetic expressions
--- typeArrowP :: Parser Type
--- typeArrowP = makeExprParser termP opTable
---   where
---     termP :: Parser Type
---     termP = MP.choice
---       [ parens typeP
---       , TypeVar <$> typeVarP
---       , TypeMetaVar <$> metaVarP
---       , typeConstructorP
---       ]
---     opTable :: [[Operator Parser Type]]
---     opTable = [ [ InfixR (TypeArr <$ _arrow) ] ]
+typeArrowP :: Parser Cst.LocatedType
+typeArrowP = snd <$> makeExprParser (withSpan termP) opTable
+  where
+    termP :: Parser Cst.LocatedType
+    termP = MP.choice
+      [ parens typeP
+      , typeVarP
+      , metaVarP
+      , typeConP
+      ]
+    opTable :: [[Operator Parser (Span, Cst.LocatedType)]]
+    opTable = [ [ InfixR (combine <$ _arrow) ] ]
+    combine :: (Span, Cst.LocatedType) -> (Span, Cst.LocatedType) -> (Span, Cst.LocatedType)
+    combine (Span p1 _, e1) (Span _ p2, e2) = (s12, InF $ Cst.TypeArr s12 e1 e2)
+      where s12 = Span p1 p2
 
 ---- expressions -------------------------------------------
 
 letExprP :: Parser Stx.LocatedExpr
 letExprP = (do
-  p0      <- getOffset
+  p0      <- getPos
   (sx, x) <- (_let *> withSpan nameP)
   expr    <- (_equal *> simpleExprP)
   body    <- (_in *> exprP)
@@ -220,7 +252,7 @@ letExprP = (do
 
 ifExprP :: Parser Stx.LocatedExpr
 ifExprP = (do
-  p0   <- getOffset
+  p0   <- getPos
   econ <- (_if *> simpleExprP)
   etru <- (_then *> simpleExprP)
   efls <- (_else *> simpleExprP)
@@ -236,7 +268,7 @@ spineP = (snd . foldl1 app) <$> MP.some (withSpan simpleExprP)
 
 lamP :: Parser Stx.LocatedExpr
 lamP = (do
-    p0     <- getOffset
+    p0     <- getPos
     _      <- _backslash
     (sx,x) <- withSpan nameP
     body   <- (_arrow *> exprP)
@@ -314,7 +346,7 @@ makeError peb = ParseError errors
       errorLine   = MP.unPos sourceLine,
       errorCol    = MP.unPos sourceColumn
       }
-    
+
     -- https://stackoverflow.com/a/70139061/1444650
     annotateErrorBundle :: MP.ParseErrorBundle Text Void -> NonEmpty (MP.SourcePos, T.Text)
     annotateErrorBundle bundle
@@ -332,18 +364,12 @@ parse t =
 
 ------------------------------------------------------------
 
--- newtype ParseTypeResult = ParseTypeResult
---   { parsedType :: Type
---   } deriving stock (Show, Eq)
+newtype ParseTypeResult = ParseTypeResult
+  { parsedType :: Cst.LocatedType
+  } deriving stock (Eq)
 
--- parseType :: Text -> Either Text ParseTypeResult
--- parseType t =
---   case MP.runParser (typeP <* MP.eof) "[result]" t of
---     Left peb -> Left . T.pack $ MP.errorBundlePretty peb
---     Right x -> Right $ ParseTypeResult x
-
--- tryParse :: Pretty a => (Parser a) -> Text -> Text
--- tryParse p t =
---   case MP.runParser (p <* MP.eof) "[test]" t of
---     Left peb -> (T.pack . MP.errorBundlePretty) peb
---     Right x -> pretty x
+parseType :: Text -> Either ParseError ParseTypeResult
+parseType t =
+  case evalState (MP.runParserT (typeP <* MP.eof) "[result]" t) (Pos 0) of
+    Left peb -> Left $ makeError peb
+    Right x -> Right $ ParseTypeResult x
