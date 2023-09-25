@@ -34,11 +34,34 @@ export const treeSpanQuery = <T extends HasSpan>(query: [number,number], tree: L
 
 ////////////////////////////////////////////////////////////
 
-export type Type
+export type Type = PolyType;
+
+export type MonoType
   = TypeVar
   | TypeMetaVar
   | TypeCon
   | TypeArr
+
+export type PolyType = HasSpan & {
+  tag: "PolyType"
+  tvs: string[]
+  type: RhoType
+}
+
+export type RhoType
+  = RhoMono
+  | RhoArr
+
+export type RhoMono = HasSpan & {
+  tag: "RhoMono",
+  type: MonoType
+};
+
+export type RhoArr = HasSpan & {
+  tag: "RhoArr",
+  t1: PolyType,
+  t2: PolyType
+};
 
 export type TypeVar     = HasSpan & { tag: "TypeVar",     name: string };
 export type TypeMetaVar = HasSpan & { tag: "TypeMetaVar", name: string };
@@ -49,9 +72,14 @@ export type TypeArr     = HasSpan & {
   t2: Type
 };
 
-export const typeSubExprs = (t: Type): Type[] => {
-  if(t.tag === "TypeArr") { return [t.t1, t.t2]; }
-  else                    { return [];           }
+export type TypeFragment = MonoType | RhoType | PolyType
+
+export const typeSubExprs = (t: TypeFragment): TypeFragment[] => {
+  if(t.tag === "PolyType") { return [t.type];     }
+  if(t.tag === "RhoMono")  { return [t.type];     }
+  if(t.tag === "RhoArr")   { return [t.t1, t.t2]; }
+  if(t.tag === "TypeArr")  { return [t.t1, t.t2]; }
+  else                     { return [];           }
 }
 
 ////////////////////////////////////////////////////////////

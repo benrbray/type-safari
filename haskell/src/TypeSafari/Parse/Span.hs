@@ -35,5 +35,3 @@ instance ToJSON (Span) where
 
 class HasSpan m where
   getSpan :: m -> Span
-  withSpan :: m -> (Span, m)
-  withSpan = toFst getSpan

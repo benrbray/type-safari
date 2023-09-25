@@ -24,9 +24,8 @@ import GHC.Generics (Generic)
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Syntax.Concrete qualified as Cst
 import TypeSafari.RecursionSchemes.Mu (Mu(..))
-import TypeSafari.Parse.Span (Span(..), Pos(..), Span)
+import TypeSafari.Parse.Span (Span(..), Pos(..), Span, HasSpan (..))
 import Control.Monad.State (State, MonadState (..), evalState)
-
 
 ------------------------------------------------------------
 
@@ -92,13 +91,13 @@ _arrow :: Parser Text
 _arrow = symbol "->"
 
 _forall :: Parser Text
-_forall = symbol "forall"
-
-_forallUnicode :: Parser Text
-_forallUnicode = symbol "∀"
+_forall = MP.choice [ symbol "forall", symbol "∀" ]
 
 _comma :: Parser Text
 _comma = symbol ","
+
+_dot :: Parser Text
+_dot = symbol "."
 
 _questionMark :: Parser Text
 _questionMark = symbol "?"
@@ -191,52 +190,80 @@ parens = MP.between (symbol "(") (symbol ")")
 ---- types -------------------------------------------------
 
 -- -- TODO: validate that type var is bound by a forall
-typeVarP :: Parser Cst.LocatedType
+typeVarP :: Parser (Span, Cst.Name)
 typeVarP = do
   p0 <- getPos
   tv <- lowerIdentP <?> "type variable"
   p1 <- getNonSpacePos
-  return . InF $ Cst.TypeVar (Span p0 p1) tv
+  return (Span p0 p1, tv)
 
-metaVarP :: Parser Cst.LocatedType
+metaVarP :: Parser (Span, Cst.Name)
 metaVarP = do
   p0 <- getPos
   tv <- metaIdentP <?> "type metavariable"
   p1 <- getNonSpacePos
-  return . InF $ Cst.TypeMetaVar (Span p0 p1) tv
+  return (Span p0 p1, tv)
 
-typeConP :: Parser Cst.LocatedType
+typeConP :: Parser (Span, Cst.Name)
 typeConP = do
   p0 <- getPos
   tv <- upperIdentP <?> "type constructor"
   p1 <- getNonSpacePos
-  return . InF $ Cst.TypeCon (Span p0 p1) tv
+  return (Span p0 p1, tv)
 
-typeP :: Parser Cst.LocatedType
-typeP = MP.choice [
-    typeArrowP,
-    parens typeP,
-    typeVarP,
-    metaVarP,
-    typeConP
+monoTypeP :: Parser (Cst.MonoType Span)
+monoTypeP = MP.choice [
+    parens monoTypeP,
+    mono Cst.TypeVar typeVarP,
+    mono Cst.TypeMetaVar metaVarP,
+    mono Cst.TypeCon typeConP
+  ]
+  where
+    mono f p = do
+      (s, t) <- p
+      return $ InF (f s t)
+
+rhoTypeMonoP :: Parser (Cst.RhoType Span)
+rhoTypeMonoP = do
+  t  <- monoTypeP
+  return $ Cst.RhoMono (getSpan t) t
+
+rhoTypeArrowP :: Parser (Cst.RhoType Span)
+rhoTypeArrowP = termP >>= helper
+  where
+    termP = do
+      p0 <- getPos
+      t <- MP.choice [
+          parens polyTypeP,
+          emptyForall . rhoMono <$> monoTypeP
+        ]
+      return (p0, t)
+    helper :: (Pos, Cst.PolyType Span) -> Parser (Cst.RhoType Span)
+    helper (p0, left) = do
+      _     <- _arrow
+      right <- termP >>= (\(pr,r) -> (emptyForall <$> helper (pr,r)) <|> pure r)
+      p1    <- getNonSpacePos
+      return $ Cst.RhoArr (Span p0 p1) left right
+
+    rhoMono :: Cst.MonoType Span -> Cst.RhoType Span
+    rhoMono tm = Cst.RhoMono (getSpan tm) tm
+
+    emptyForall :: Cst.RhoType Span -> Cst.PolyType Span
+    emptyForall rt = Cst.Forall (getSpan rt) [] rt
+
+rhoTypeP :: Parser (Cst.RhoType Span)
+rhoTypeP = MP.choice [
+    rhoTypeArrowP,
+    rhoTypeMonoP
   ]
 
--- arithmetic expressions
-typeArrowP :: Parser Cst.LocatedType
-typeArrowP = snd <$> makeExprParser (withSpan termP) opTable
-  where
-    termP :: Parser Cst.LocatedType
-    termP = MP.choice
-      [ parens typeP
-      , typeVarP
-      , metaVarP
-      , typeConP
-      ]
-    opTable :: [[Operator Parser (Span, Cst.LocatedType)]]
-    opTable = [ [ InfixR (combine <$ _arrow) ] ]
-    combine :: (Span, Cst.LocatedType) -> (Span, Cst.LocatedType) -> (Span, Cst.LocatedType)
-    combine (Span p1 _, e1) (Span _ p2, e2) = (s12, InF $ Cst.TypeArr s12 e1 e2)
-      where s12 = Span p1 p2
+polyTypeP :: Parser (Cst.PolyType Span)
+polyTypeP = do
+  p0   <- getPos
+  tvs <- (_forall *> (MP.some typeVarP <* _dot)) <|> pure []
+  body <- rhoTypeP
+  p1  <- getNonSpacePos
+  return $ Cst.Forall (Span p0 p1) (snd <$> tvs) body
 
 ---- expressions -------------------------------------------
 
@@ -370,6 +397,6 @@ newtype ParseTypeResult = ParseTypeResult
 
 parseType :: Text -> Either ParseError ParseTypeResult
 parseType t =
-  case evalState (MP.runParserT (typeP <* MP.eof) "[result]" t) (Pos 0) of
+  case evalState (MP.runParserT (polyTypeP <* MP.eof) "[result]" t) (Pos 0) of
     Left peb -> Left $ makeError peb
     Right x -> Right $ ParseTypeResult x

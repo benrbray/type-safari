@@ -17,7 +17,7 @@ import { CodeEditor, CodeEditorApi } from './components/CodeEditor/CodeEditor';
 import AnsiColor from "ansi-to-html";
 import dedent from "dedent-js";
 import { parseTreePlugin } from './editor/ParseInfoPlugin';
-import { Expr, HasSpan, LocatedTree, Type, exprSubTerms, treeSpanQuery, typeSubExprs } from './syntax/Expr';
+import { Expr, HasSpan, LocatedTree, TypeFragment, exprSubTerms, treeSpanQuery, typeSubExprs } from './syntax/Expr';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,7 +214,7 @@ const Unification = () => {
   const { handleDocChanged, infoAt }
   = parseTreeUpdater(
       () => codeEditorApi,
-      async (text: string): Promise<UpdaterResult<Type>> => {
+      async (text: string): Promise<UpdaterResult<TypeFragment>> => {
         const result = await workerApi.runParseType(text);
 
         if(result.data.outputType) {

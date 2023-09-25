@@ -33,6 +33,8 @@ Hindley-Milner & Extensions
 * [ ] Row Polymorphism
 * [ ] Units of Measure, Commutative Group Unification a la [Gundry 2013](https://adam.gundry.co.uk/pub/thesis/thesis-2013-12-03.pdf)
 
+Normalization by Evaluation
+
 Type Inference for Dependent Types
 
 * [ ] Calculus of Constructions
@@ -62,8 +64,9 @@ Hindley-Milner
 * Brian McKenna 2013, ["Bottom-Up Type Annotation with the Cofree Comonad"](https://brianmckenna.org/blog/type_annotation_cofree)
   * a partial implementation (missing let-generalization) of Heeren2002's constraint-based Hindley-Milner using `Cofree` to represent annotated AST
 
-Bidirectional Type-Checking
+Bidirectional Type Inference
 
 * Pfenning 2004, ["Lecture Notes on Bidirectional Type-Checking"](https://www.cs.cmu.edu/~fp/courses/15312-f04/handouts/15-bidirectional.pdf)
 * Pierce & turner 2000, ["Local Type Inference"](https://www.cis.upenn.edu/~bcpierce/papers/lti-toplas.pdf)
   * Type inference algorithms have not caught up with the development of type _systems_, because it is hard to guarantee completeness.  Instead, this paper presents a bidirectional _local type inference_ algorithm for _partial type inference_.
+* Dunfield & Krishnaswami 2013, ["Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism"](https://www.cl.cam.ac.uk/~nk480/bidir.pdf)
