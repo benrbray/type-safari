@@ -51,7 +51,6 @@ Here are some topics I hope to cover, but I'm not quite sure how/where they fit 
   * Stephen Dolan's [Algebraic Subtyping](https://api.repository.cam.ac.uk/server/api/core/bitstreams/d50b4d1a-a688-46eb-bb4f-9f4e204d0f60/content)
 * ML's value restriction, and OCaml's relaxation of the value restriction
 
-
 ## Resources
 
 Hindley-Milner
@@ -60,7 +59,7 @@ Hindley-Milner
 * Okmij, ["How OCaml Type Checker Works -- or What Polymorphism and Garbage Collection Have in Common"](https://okmij.org/ftp/ML/generalization.html)
   * explains Rémy's "efficient level-based generalization" [Rémy 1992, "Extension of ML Type System with a Sorted Equational Theory on Types"](http://gallium.inria.fr/~remy/ftp/eq-theory-on-types.pdf)
 * StackOverflow, ["What part of Hindley-Milner do you not understand?"](https://stackoverflow.com/questions/12532552/what-part-of-hindley-milner-do-you-not-understand/42034379#42034379)
-* Mark P. Jones, ["Typing Haskell in Haskell"](https://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
+* Jones 2000, ["Typing Haskell in Haskell"](https://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
 * Brian McKenna 2013, ["Bottom-Up Type Annotation with the Cofree Comonad"](https://brianmckenna.org/blog/type_annotation_cofree)
   * a partial implementation (missing let-generalization) of Heeren2002's constraint-based Hindley-Milner using `Cofree` to represent annotated AST
 
@@ -70,3 +69,11 @@ Bidirectional Type Inference
 * Pierce & turner 2000, ["Local Type Inference"](https://www.cis.upenn.edu/~bcpierce/papers/lti-toplas.pdf)
   * Type inference algorithms have not caught up with the development of type _systems_, because it is hard to guarantee completeness.  Instead, this paper presents a bidirectional _local type inference_ algorithm for _partial type inference_.
 * Dunfield & Krishnaswami 2013, ["Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism"](https://www.cl.cam.ac.uk/~nk480/bidir.pdf)
+
+Optimizations
+
+* Gamari 2019, ["Writing Efficient Free Variable Traversals"](https://www.haskell.org/ghc/blog/20190728-free-variable-traversals.html)
+
+Miscellaneous
+
+* Scott 2019, ["The Surprising Rigidness of Higher-Rank Kinds"](https://ryanglscott.github.io/2019/07/10/the-surprising-rigidness-of-higher-rank-kinds/)

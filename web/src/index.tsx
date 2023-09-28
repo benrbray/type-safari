@@ -108,7 +108,7 @@ const workerApi = {
 const root = document.getElementById('root');
 
 const App = function () {
-  return (<div class="demo">
+  return (<div class="demo column">
     <h1>type-safari</h1>
 
     <h2>Unification</h2>
@@ -242,10 +242,7 @@ const Unification = () => {
       extensions={[parseTreePlugin(handleDocChanged, infoAt)]}
     >
       {dedent(String.raw`
-        -- fails because lambda-bound variables are monomorphic under Hindley-Milner
-        let const = (\v -> \x -> v) in
-        let f = (\y -> if True then (y 1) else (y True)) in
-        f const
+        forall r. (forall a. a -> r) -> r
       `)}
     </CodeEditor>
   </div>;
@@ -265,7 +262,6 @@ const TypeInference = () => {
   // solidJS only renders once, so an ordinary closure is
   // enough to keep a mutable reference (with no reactivity)
   let codeEditorApi: CodeEditorApi|null = null;
-  // let parseTree: Expr | null = null;
 
   const handleClick = async () => {
     if(!codeEditorApi) { return; }

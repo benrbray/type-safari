@@ -1,7 +1,7 @@
 // codemirror
 import { EditorView } from "codemirror";
 import { ViewPlugin, Decoration, DecorationSet, ViewUpdate } from "@codemirror/view";
-import { SelectionRange } from "@codemirror/state";
+import { SelectionRange, EditorState } from "@codemirror/state";
 import { HasSpan } from "../syntax/Expr";
 
 ////////////////////////////////////////////////////////////
@@ -12,11 +12,25 @@ export function parseTreePlugin(
   notifyDocChanged: () => void,
   infoAt: (selection: SelectionRange) => HasSpan | null
 ) {
+
   const plugin = ViewPlugin.fromClass(class {
     decorations: DecorationSet;
 
     constructor(view: EditorView) {
       this.decorations = Decoration.set([]);
+
+      // compute parse info for the first time
+      notifyDocChanged();
+    }
+
+    updateInfo(state: EditorState): void {
+      const info = infoAt(state.selection.main);
+      if(info) {
+        const [from,to] = info.span;
+        this.decorations = Decoration.set([{ from, to, value: underlineMark }]);
+      } else {
+        this.decorations = Decoration.set([]);
+      }
     }
 
     update(update: ViewUpdate) {
@@ -25,17 +39,10 @@ export function parseTreePlugin(
         notifyDocChanged();
       }
       
-      // display info for current selectoin
+      // display info for current selection
       if(update.selectionSet || update.docChanged) {
-        const info = infoAt(update.state.selection.main);
-        if(info) {
-          const [from,to] = info.span;
-          this.decorations = Decoration.set([{ from, to, value: underlineMark }]);
-        } else {
-          this.decorations = Decoration.set([]);
-        }
+        this.updateInfo(update.state);
       }
-
     }
   }, {
     decorations: v => v.decorations

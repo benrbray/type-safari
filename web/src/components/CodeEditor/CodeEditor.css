@@ -1,4 +1,13 @@
-.cm-editor { max-height: 20rem; }
+.cm-editor {
+  max-height: 20rem;
+  background-color: white;
+  border: 1px solid #999;
+}
+
+.cm-focused {
+  outline: 2px solid #606060 !important;
+}
+
 .cm-content, .cm-gutter { min-height: 10rem; }
 .cm-gutters { margin: 1px; height: 100%; }
 .cm-scroller { overflow: auto; }
