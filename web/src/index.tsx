@@ -101,6 +101,10 @@ const workerApi = {
   async runInferAbstract(inputText: string) {
     return callWorkerApi("runInferAbstract", { inputText });
   },
+
+  async runUnify(inputText: string) {
+    return callWorkerApi("runUnify", { inputText });
+  },
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,15 +219,15 @@ const Unification = () => {
   = parseTreeUpdater(
       () => codeEditorApi,
       async (text: string): Promise<UpdaterResult<TypeFragment>> => {
-        const result = await workerApi.runParseType(text);
+        const result = await workerApi.runUnify(text);
 
-        if(result.data.outputType) {
-          console.log(result.data.outputType);
+        if(result.data.outputSubst) {
+          console.log(result.data.outputSubst);
           return {
             tag: "result",
             tree: {
               subTrees: typeSubExprs,
-              tree: result.data.outputType
+              tree: result.data.outputSubst
             }
           };
         } else {

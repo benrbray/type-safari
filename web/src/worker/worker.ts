@@ -65,6 +65,8 @@ async function main() {
 			runJsonOp(haskell, "runParseType", req.data);
 		} else if(req.tag === "runInferAbstract") {
 			runJsonOp(haskell, "runInferAbstract", req.data);
+		} else if(req.tag === "runUnify") {
+			runJsonOp(haskell, "runUnify", req.data);
 		} else {
 			respondUnknown();
 		}

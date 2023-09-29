@@ -11,15 +11,10 @@ export interface WorkerRequestData {
 	"toUpper" : {
 		value : string
 	},
-	"runParse" : {
-		inputText: string
-	},
-	"runParseType" : {
-		inputText: string
-	},
-	"runInferAbstract" : {
-		inputText: string
-	}
+	"runParse"         : { inputText: string },
+	"runParseType"     : { inputText: string },
+	"runInferAbstract" : { inputText: string },
+	"runUnify"         : { inputText: string }
 }
 
 export type OpName = keyof WorkerRequestData
@@ -80,6 +75,10 @@ export interface WorkerResultData {
 		outputConstraints?: string[],
 		outputSubst?: { [typeVar:string] : string }|undefined
 		outputActions?: string[] | undefined
+	},
+	"runUnify" : {
+		outputSubst?: any |undefined
+		outputError?: OutputError|undefined
 	},
 }
 

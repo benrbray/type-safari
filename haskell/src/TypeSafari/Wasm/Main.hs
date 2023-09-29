@@ -23,6 +23,7 @@ import Data.ByteString.Unsafe
 import TypeSafari.FFI.StringWithLen
 import TypeSafari.Api.Parse qualified as Parse
 import TypeSafari.Api.ParseType qualified as ParseType
+import TypeSafari.Api.Unify qualified as Unify
 import TypeSafari.Api.InferAbstract qualified as InferAbstract
 
 --------------------------------------------------------------------------------
@@ -119,5 +120,13 @@ foreign export ccall runInferAbstract :: ForeignStringTransform
 
 --------------------------------------------------------------------------------
 
+runUnify :: ForeignStringTransform
+runUnify = runJsonTransform Unify.run Unify.dispError
+
+foreign export ccall runUnify :: ForeignStringTransform
+
+--------------------------------------------------------------------------------
+
 main :: IO ()
 main = pure ()
+  where _x = "" :: String

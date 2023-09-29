@@ -90,6 +90,7 @@ common type-safari
     TypeSafari.Api.Parse
     TypeSafari.Api.ParseType
     TypeSafari.Api.InferAbstract
+    TypeSafari.Api.Unify
     TypeSafari.Core
     TypeSafari.FFI.StringWithLen
     TypeSafari.FFI.Util
@@ -98,6 +99,9 @@ common type-safari
     TypeSafari.HindleyMilner.Parse
     TypeSafari.HindleyMilner.Syntax
     TypeSafari.HindleyMilner.Syntax.Concrete
+    TypeSafari.HindleyMilner.Syntax.Core
+    TypeSafari.HindleyMilner.Syntax.Expr
+    TypeSafari.HindleyMilner.Syntax.Type
     TypeSafari.Pretty
     TypeSafari.Parse.Span
     TypeSafari.RecursionSchemes.Mu
@@ -137,4 +141,5 @@ executable type-safari-wasm
     \,--export=runParse\
     \,--export=runParseType\
     \,--export=runInferAbstract\
+    \,--export=runUnify\
     \"

@@ -62,6 +62,11 @@ Hindley-Milner
 * Jones 2000, ["Typing Haskell in Haskell"](https://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
 * Brian McKenna 2013, ["Bottom-Up Type Annotation with the Cofree Comonad"](https://brianmckenna.org/blog/type_annotation_cofree)
   * a partial implementation (missing let-generalization) of Heeren2002's constraint-based Hindley-Milner using `Cofree` to represent annotated AST
+* Kaminski 2010, ["Who ordered skolem constants?"](https://genericlanguage.wordpress.com/2010/08/23/who-ordered-skolem-constants/) (and [discussion](https://www.reddit.com/r/haskell/comments/d4v83/who_ordered_skolem_constants/))
+
+System F
+
+* Ben Lynn, ["System F"](https://crypto.stanford.edu/~blynn/lambda/systemf.html)
 
 Bidirectional Type Inference
 

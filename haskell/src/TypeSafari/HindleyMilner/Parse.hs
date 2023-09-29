@@ -23,6 +23,7 @@ import GHC.Generics (Generic)
 
 import TypeSafari.HindleyMilner.Syntax qualified as Stx
 import TypeSafari.HindleyMilner.Syntax.Concrete qualified as Cst
+-- import TypeSafari.HindleyMilner.Infer qualified as Infer
 import TypeSafari.RecursionSchemes.Mu (Mu(..))
 import TypeSafari.Parse.Span (Span(..), Pos(..), Span, HasSpan (..))
 import Control.Monad.State (State, MonadState (..), evalState)
@@ -265,6 +266,8 @@ polyTypeP = do
   p1  <- getNonSpacePos
   return $ Cst.Forall (Span p0 p1) (snd <$> tvs) body
 
+---- unification problem -----------------------------------
+
 ---- expressions -------------------------------------------
 
 letExprP :: Parser Stx.LocatedExpr
@@ -400,3 +403,15 @@ parseType t =
   case evalState (MP.runParserT (polyTypeP <* MP.eof) "[result]" t) (Pos 0) of
     Left peb -> Left $ makeError peb
     Right x -> Right $ ParseTypeResult x
+
+------------------------------------------------------------
+
+newtype ParseUnifResult = ParseUnifResult
+  { parsedUnif :: Cst.LocatedType
+  } deriving stock (Eq)
+
+parseUnif :: Text -> Either ParseError ParseUnifResult
+parseUnif t =
+  case evalState (MP.runParserT (polyTypeP <* MP.eof) "[result]" t) (Pos 0) of
+    Left peb -> Left $ makeError peb
+    Right x -> Right $ ParseUnifResult x
