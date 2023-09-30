@@ -1,2 +1,3 @@
 - ignore: {name: Redundant bracket}
 - ignore: {name: Redundant return}
+- ignore: {name: Use record patterns}

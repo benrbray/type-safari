@@ -17,3 +17,7 @@
   border-bottom: 2px solid rgb(0, 185, 25);
   background-color: rgba(0, 185, 25, 0.1);
 }
+
+.cm-tooltip {
+  max-width: 30em;
+}

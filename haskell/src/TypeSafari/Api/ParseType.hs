@@ -9,7 +9,9 @@ import GHC.Generics
 import Data.Text (Text)
 import Prelude
 import TypeSafari.HindleyMilner.Parse (parseType, ParseTypeResult (..), ParseError)
-import TypeSafari.HindleyMilner.Syntax.Concrete (LocatedType)
+import TypeSafari.HindleyMilner.Syntax.Concrete (LocatedType, convertPoly, runConvert, SyntaxError)
+import TypeSafari.Pretty (Pretty(..))
+import TypeSafari.Parse.Span (Span)
 
 --------------------------------------------------------------------------------
 
@@ -20,7 +22,8 @@ newtype Input = Input {
   deriving anyclass FromJSON
 
 data Output = Output {
-    outputType :: Maybe LocatedType,
+    outputTypeConcrete :: Maybe LocatedType,
+    outputTypeAbstract :: Maybe Text,
     outputError :: Maybe OutputError
   }
   deriving stock (Generic)
@@ -28,6 +31,7 @@ data Output = Output {
 
 data OutputError
   = OutputParseError ParseError
+  | OutputSyntaxError (SyntaxError Span)
   | OutputUnknownError Text
   deriving stock (Generic)
   deriving anyclass (ToJSON)
@@ -39,18 +43,27 @@ run Input{..} = pure $
   case parseType inputText of
     Left err ->
       Output {
-        outputType = Nothing,
+        outputTypeConcrete = Nothing,
+        outputTypeAbstract = Nothing,
         outputError = Just (OutputParseError err)
       }
     Right ParseTypeResult{ parsedType } ->
-      Output {
-        outputType = Just parsedType,
-        outputError = Nothing
-      }
+      case runConvert (convertPoly parsedType) of
+        Left err -> Output {
+          outputTypeConcrete = Just parsedType,
+          outputTypeAbstract = Nothing,
+          outputError = Just (OutputSyntaxError err)
+        }
+        Right t -> Output {
+          outputTypeConcrete = Just parsedType,
+          outputTypeAbstract = Just $ pretty t,
+          outputError = Nothing
+        }
 
 dispError :: Text -> Output
 dispError t =
   Output {
-    outputType = Nothing,
+    outputTypeConcrete = Nothing,
+    outputTypeAbstract = Nothing,
     outputError = Just (OutputUnknownError t)
   }

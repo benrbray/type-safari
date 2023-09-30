@@ -32,6 +32,7 @@ export type WorkerRequest<Op extends OpName> = Op extends OpName ? {
 
 export type OutputError
 	= OutputParseError
+	| OutputSyntaxError
 	| OutputTypeError
 	| OutputUnknownError
 
@@ -51,6 +52,13 @@ export type OutputTypeError = {
 	contents: string
 }
 
+export type OutputSyntaxError = {
+	tag: "OutputSyntaxError"
+	contents:
+		{ tag: "UnboundVariable", contents: [[number, number], string] } |
+		{ tag: "ExpectedMonoType", contents: [number, number] }
+};
+
 export type OutputUnknownError = {
 	tag: "OutputUnknownError"
 	contents: string
@@ -65,7 +73,8 @@ export interface WorkerResultData {
 		outputError?: OutputError|undefined
 	},
 	"runParseType" : {
-		outputType?: Type |undefined
+		outputTypeConcrete?: Type |undefined
+		outputTypeAbstract?: string |undefined
 		outputError?: OutputError|undefined
 	},
 	"runInferAbstract" : {

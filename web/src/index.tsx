@@ -160,6 +160,8 @@ function parseTreeUpdater<T extends HasSpan>(
     // clear errors
     codeEditorApi.clearErrors();
 
+    console.log(result);
+
     if(result.tag === "result") {
       parseTree = result.tree;
     } else {
@@ -182,9 +184,23 @@ function parseTreeUpdater<T extends HasSpan>(
           } else {
             console.error("bad line/col", error);
           }
-
         }
-  
+      } else if(error.tag === "OutputSyntaxError") {
+        if(error.contents.tag === "UnboundVariable") {
+          const [[from,to], name] = error.contents.contents;
+          codeEditorApi.addError({
+            type: "SyntaxError",
+            message: `unbound variable '${name}'`,
+            range: { from, to }
+          });
+        } else if(error.contents.tag === "ExpectedMonoType") {
+          const [from,to] = error.contents.contents;
+          codeEditorApi.addError({
+            type: "SyntaxError",
+            message: "Expected monotype, found polytype instead.  Hindley-Milner only supports universal quantification at the top-level.",
+            range: { from , to }
+          });
+        }
       }
     }
   });
@@ -219,21 +235,27 @@ const Unification = () => {
   = parseTreeUpdater(
       () => codeEditorApi,
       async (text: string): Promise<UpdaterResult<TypeFragment>> => {
-        const result = await workerApi.runUnify(text);
+        const result = await workerApi.runParseType(text);
 
-        if(result.data.outputSubst) {
-          console.log(result.data.outputSubst);
+        console.log(result);
+
+        if(result.data.outputError) {
+          return {
+            tag: "error",
+            error: result.data.outputError
+          };
+        } else if(result.data.outputTypeConcrete) {
           return {
             tag: "result",
             tree: {
               subTrees: typeSubExprs,
-              tree: result.data.outputSubst
+              tree: result.data.outputTypeConcrete
             }
           };
         } else {
           return {
             tag: "error",
-            error: result.data.outputError!
+            error: { tag: "OutputUnknownError", contents: "unknown error" }
           };
         }
       }

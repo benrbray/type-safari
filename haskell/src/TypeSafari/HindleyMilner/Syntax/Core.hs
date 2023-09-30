@@ -5,7 +5,7 @@ import Data.Aeson
 import TypeSafari.Core
 import TypeSafari.Pretty
 
---------------------------------------------------------------------------------
+------------------------------------------------------------
 
 data Name
   = Name Text

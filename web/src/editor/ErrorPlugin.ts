@@ -39,7 +39,7 @@ export const clearErrors = StateEffect.define();
 ////////////////////////////////////////////////////////////////////////////////
 
 export type ErrorInfo = {
-  type: "ParseError"
+  type: "ParseError"|"SyntaxError"
   message: string,
   range: { from: number, to: number }
 }
