@@ -254,7 +254,7 @@ rhoTypeArrowP = termP >>= helper
 
 rhoTypeP :: Parser (Cst.RhoType Span)
 rhoTypeP = MP.choice [
-    rhoTypeArrowP,
+    MP.try rhoTypeArrowP,
     rhoTypeMonoP
   ]
 

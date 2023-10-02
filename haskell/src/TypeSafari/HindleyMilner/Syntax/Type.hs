@@ -50,10 +50,13 @@ instance Pretty Type where
   pretty (TypeCon t) = t
   pretty (TypeArr t1 t2) = "(" <> pretty t1 <> " --> " <> pretty t2 <> ")"
 
+replicateText :: Int -> Text -> Text
+replicateText n t = foldl1 (<>) $ replicate n t
+
 instance Pretty TypeScheme where
   pretty :: TypeScheme -> Text
   pretty (Forall 0 t) = pretty t
-  pretty (Forall k t) = "∀" <> show k <> ". " <> pretty t
+  pretty (Forall k t) =  replicateText k "∀" <> ". " <> pretty t
 
 instance Pretty TV where
   pretty :: TV -> Text

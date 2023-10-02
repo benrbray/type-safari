@@ -4,7 +4,7 @@ With this project, I aim to collect reference implementations of type inference 
 
 ## Inspiration
 
-* The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series, but it has already diverged substantially.
+* The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series (and [corrections](https://github.com/JKTKops/Write-You-a-Haskell-2/blob/master/7/7.5_additions_to_poly.md)), but it has already diverged substantially.
 * The name (and project) is inspired by Andrej Bauer and Matija Pretnar's ["Programming Language Zoo"](http://plzoo.andrej.com/) and Andras Kovacs' ["Elaboration Zoo"](https://github.com/AndrasKovacs/elaboration-zoo).  I briefly considered *Type Petting Zoo* for the name, but thought it might be a bit too silly :)
 * Stephen Dolan's ["Counterexamples in Type Systems"](https://counterexamples.org/title.html)
 
@@ -63,6 +63,7 @@ Hindley-Milner
 * Brian McKenna 2013, ["Bottom-Up Type Annotation with the Cofree Comonad"](https://brianmckenna.org/blog/type_annotation_cofree)
   * a partial implementation (missing let-generalization) of Heeren2002's constraint-based Hindley-Milner using `Cofree` to represent annotated AST
 * Kaminski 2010, ["Who ordered skolem constants?"](https://genericlanguage.wordpress.com/2010/08/23/who-ordered-skolem-constants/) (and [discussion](https://www.reddit.com/r/haskell/comments/d4v83/who_ordered_skolem_constants/))
+* Vytiniotis 2010, ["Let should not be Generalized"](https://web.archive.org/web/20170530210526/https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tldi10-vytiniotis.pdf)
 
 System F
 
