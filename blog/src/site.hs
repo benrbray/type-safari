@@ -46,6 +46,7 @@ import Debug.Trace (trace, traceShow)
 import KaTeX (kaTeXifyIO)
 import qualified Biblio as Bib
 import Data.Ord (comparing)
+import Data.List (isPrefixOf)
 
 
 --------------------------------------------------------------------------------
@@ -76,7 +77,7 @@ main = do
   -- compile website
   hakyllWith config $ do
 
-    let ctx = defaultContext
+    let ctx = relativizeUrl <> defaultContext
 
     match "images/**" $ do
         route   idRoute
@@ -229,6 +230,28 @@ removeExt item = do
     where
         f = ap fromMaybe (stripSuffix ".html")
 
+-- | A 'Hakyll.Web.Template.Context.functionField' that does the same as 'Hakyll.Web.RelativizeUrls.relativizeUrls', but can be used anywhere in a template.
+-- You can call it in a template like this:
+--
+-- > $relativizeUrl("/url/to/relativize")$
+--
+-- You can also refer to other fields. 
+-- Let's say that @pathToImages@ is another Hakyll field that produces @"\/hi\/there"@.
+-- We can then do the following:
+--
+-- > $relativizeUrl(pathToImages)$
+relativizeUrl :: Context a
+relativizeUrl = functionField "relativizeUrl" $ \args item ->
+    case args of
+        [k] -> do   route <- getRoute $ itemIdentifier item
+                    return $ case route of
+                        Nothing -> k
+                        Just r -> rel k (toSiteRoot r)
+        _   -> fail "relativizeUrl only needs a single argument"
+     where
+        isRel x = "/" `isPrefixOf` x && not ("//" `isPrefixOf` x)
+        rel x root = if isRel x then root ++ x else x
+
 --------------------------------------------------------------------------------
 
 postCtx :: Context String
@@ -237,6 +260,7 @@ postCtx =
     dateField "year" "%Y"                `mappend`
     dateField "month" "%B"               `mappend`
     metaDateField "date_updated" dateFmt `mappend`
+    relativizeUrl `mappend`
     defaultContext
     where
         dateFmt = "%B %e, %Y"

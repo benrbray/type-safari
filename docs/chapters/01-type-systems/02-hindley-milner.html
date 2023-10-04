@@ -14,7 +14,7 @@
 	<link rel="stylesheet" href="../../katex/katex.min.css" />
 
 	<script type="module">
-		import * as TypeSafari from "/lib/type-safari.js"
+		import * as TypeSafari from '../../lib/type-safari.js'
 		window.TypeSafari = TypeSafari
 
 		
@@ -54,6 +54,10 @@
 		<div class="toc"><h2>Table of Contents</h2>
 
 </div>
+<div class="snippet"><pre>-- fails because lambda-bound variables are monomorphic under Hindley-Milner
+let const = (\v -> \x -> v) in
+let f = (\y -> if True then (y 1) else (y True)) in
+f const</pre></div>
 
 	</section>
 </div>
