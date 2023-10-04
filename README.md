@@ -4,7 +4,7 @@ With this project, I aim to collect reference implementations of type inference 
 
 ## Inspiration
 
-* The original code is based off of Stephen Diehl's excellent, but sadly unfinished, ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series (and [corrections](https://github.com/JKTKops/Write-You-a-Haskell-2/blob/master/7/7.5_additions_to_poly.md)), but it has already diverged substantially.
+* The original code is based off of Stephen Diehl's ["Write You a Haskell"](https://web.archive.org/web/20181017074008/http://dev.stephendiehl.com/fun/006_hindley_milner.html) series (and [corrections](https://github.com/JKTKops/Write-You-a-Haskell-2/blob/master/7/7.5_additions_to_poly.md)), but the implementation has diverged substantially.
 * The name (and project) is inspired by Andrej Bauer and Matija Pretnar's ["Programming Language Zoo"](http://plzoo.andrej.com/) and Andras Kovacs' ["Elaboration Zoo"](https://github.com/AndrasKovacs/elaboration-zoo).  I briefly considered *Type Petting Zoo* for the name, but thought it might be a bit too silly :)
 * Stephen Dolan's ["Counterexamples in Type Systems"](https://counterexamples.org/title.html)
 

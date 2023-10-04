@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<!-- Viewport Meta Tag for Mobile Site -->
+	<!-- https://developer.mozilla.org/en-US/docs/Mozilla/Mobile/Viewport_meta_tag) -->
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Type Inference for Hindley-Milner / Benjamin R. Bray</title>
+	<link rel="stylesheet" href="../../lib/style.css" />
+	<link rel="stylesheet" href="../../css/style.css" />
+	<link rel="stylesheet" href="../../css/pandoc-syntax.css" />
+	<link rel="stylesheet" href="../../katex/katex.min.css" />
+
+	<script type="module">
+		import * as TypeSafari from "/lib/type-safari.js"
+		window.TypeSafari = TypeSafari
+
+		
+		// window.onload = function() {
+			TypeSafari.initWorker();
+
+			const snippets = Array.from(document.getElementsByClassName("snippet"));
+			snippets.forEach(elt => {
+				let code = elt.textContent.trim();
+				console.log(code);
+				elt.replaceChildren();
+				TypeSafari.makeTypeInferenceDemo(elt, code);
+			});
+		// }
+	</script>
+</head>
+
+<body>
+	<div class="warning column shadow-box">
+		This article is <b>under construction</b>!  This public draft is likely to have many errors and omissions.
+	</div>
+	<div id="content" class="column shadow-box">
+  <a href="../../">Home</a>
+	<!-- Post Header -->
+	<header class="article-header">
+		<h1 class="article-title">Type Inference for Hindley-Milner</h1>
+		<div class="article-info">
+			<!-- Date -->
+			<div class="article-date">
+				Posted on 2023-09-27
+			</div>
+		</div>
+	</header>
+
+	<!-- Body -->
+	<section>
+		<div class="toc"><h2>Table of Contents</h2>
+<ul>
+<li><a href="#introduction" id="toc-introduction">Introduction</a></li>
+<li><a href="#type-inference-for-hindley-milner" id="toc-type-inference-for-hindley-milner">Type Inference for Hindley-Milner</a>
+<ul>
+<li><a href="#type-variables-meta-variables" id="toc-type-variables-meta-variables">Type Variables, Meta Variables</a></li>
+<li><a href="#let-generalization" id="toc-let-generalization">Let-Generalization</a>
+<ul>
+<li><a href="#let-should-not-be-generalized" id="toc-let-should-not-be-generalized">Let Should Not be Generalized</a></li>
+</ul></li>
+<li><a href="#constraint-generation" id="toc-constraint-generation">Constraint Generation</a>
+<ul>
+<li><a href="#type-equality-constraints" id="toc-type-equality-constraints">Type Equality Constraints</a></li>
+<li><a href="#explicit-instance-constraints" id="toc-explicit-instance-constraints">Explicit Instance Constraints</a></li>
+<li><a href="#implicit-instance-constraints" id="toc-implicit-instance-constraints">Implicit Instance Constraints</a></li>
+</ul></li>
+<li><a href="#first-order-unification" id="toc-first-order-unification">First-Order Unification</a></li>
+</ul></li>
+<li><a href="#examples" id="toc-examples">Examples</a>
+<ul>
+<li><a href="#lambda-bound-variables-are-monomorphic" id="toc-lambda-bound-variables-are-monomorphic">Lambda-Bound Variables are Monomorphic</a></li>
+<li><a href="#skolem-constants" id="toc-skolem-constants">Skolem Constants</a></li>
+</ul></li>
+</ul>
+</div>
+<p>abc</p>
+<h1 id="introduction">Introduction</h1>
+<p>math <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mo>∫</mo><mi>a</mi><mi>b</mi></msubsup><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mi>d</mi><mi>x</mi></mrow><annotation encoding="application/x-tex">\int_a^b f(x) dx</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.3998em;vertical-align:-0.3558em;"></span><span class="mop"><span class="mop op-symbol small-op" style="margin-right:0.19445em;position:relative;top:-0.0006em;">∫</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.044em;"><span style="top:-2.3442em;margin-left:-0.1945em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">a</span></span></span><span style="top:-3.2579em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">b</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.3558em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mord mathnormal">d</span><span class="mord mathnormal">x</span></span></span></span></p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- fails because lambda-bound variables are monomorphic under Hindley-Milner</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> <span class="fu">const</span> <span class="ot">=</span> (\v <span class="ot">-&gt;</span> \x <span class="ot">-&gt;</span> v) <span class="kw">in</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> f <span class="ot">=</span> (\y <span class="ot">-&gt;</span> <span class="kw">if</span> <span class="dt">True</span> <span class="kw">then</span> (y <span class="dv">1</span>) <span class="kw">else</span> (y <span class="dt">True</span>)) <span class="kw">in</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>f <span class="fu">const</span></span></code></pre></div>
+<h1 id="type-inference-for-hindley-milner">Type Inference for Hindley-Milner</h1>
+<h2 id="type-variables-meta-variables">Type Variables, Meta Variables</h2>
+<h2 id="let-generalization">Let-Generalization</h2>
+<p>compare</p>
+<div class="snippet"><pre>let f = (\x -> x) in makePair (f True) (f 5)</pre></div>
+<p>with</p>
+<div class="snippet"><pre>(\f -> makePair (f True) (f 5)) (\x -> x)</pre></div>
+<h3 id="let-should-not-be-generalized">Let Should Not be Generalized</h3>
+<p>See <span class="citation" data-cites="vytiniotis2010:let-not-generalize">[Vytiniotis et al. 2010]</span>:</p>
+<blockquote>
+<p>From the dawn of time, all derivatives of the classic Hindley-Milner
+type system have supported implicit generalisation of local let bindings. Yet, as we will show, for more sophisticated type systems
+implicit let-generalisation imposes a disproportionate complexity burden. Moreover, it turns out that the feature is very seldom
+used, so we propose to eliminate it. The payoff is a substantial simplification, both of the specification of the type system, and of its
+implementation.</p>
+</blockquote>
+<p>See also <a href="https://www.reddit.com/r/haskell/comments/ujpzx3/was_simplified_subsumption_worth_it_for_industry/i7mn763/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button">this reddit comment</a> by Alexis King regarding subsumption and let-generalization.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Vytiniotis et al. told us Let Should Not Be Generalized, and I wanted to believe them.</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- But a decade later, I’m getting really tired of (the following) not typechecking.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- https://twitter.com/lexi_lambda/status/1160892876890476544</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ot">f ::</span> <span class="dt">A</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> <span class="dt">B</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> <span class="dt">C</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>      <span class="ot">-&gt;</span> (<span class="dt">Either</span> <span class="dt">A</span> <span class="dt">B</span>, <span class="dt">Either</span> <span class="dt">A</span> <span class="dt">C</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>f x y z <span class="ot">=</span> (g y, g z)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    g <span class="ot">=</span> <span class="fu">maybe</span> (<span class="dt">Left</span> x) <span class="dt">Right</span></span></code></pre></div>
+<h2 id="constraint-generation">Constraint Generation</h2>
+<p><span class="citation" data-cites="heeren2002:generalizing">[Heeren et al. 2002]</span></p>
+<h3 id="type-equality-constraints">Type Equality Constraints</h3>
+<h3 id="explicit-instance-constraints">Explicit Instance Constraints</h3>
+<h3 id="implicit-instance-constraints">Implicit Instance Constraints</h3>
+<h2 id="first-order-unification">First-Order Unification</h2>
+<h1 id="examples">Examples</h1>
+<h2 id="lambda-bound-variables-are-monomorphic">Lambda-Bound Variables are Monomorphic</h2>
+<div class="snippet"><pre>-- fails because lambda-bound variables are monomorphic under Hindley-Milner
+let const = (\v -> \x -> v) in
+let f = (\y -> if True then (y 1) else (y True)) in
+f const</pre></div>
+<h2 id="skolem-constants">Skolem Constants</h2>
+<div class="snippet"><pre>-- the use of skolem constants helps to detect a type error below
+-- https://genericlanguage.wordpress.com/2010/08/23/who-ordered-skolem-constants/
+let foo = (\x -> x) in
+(foo :: forall a b. a -> b)</pre></div>
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-heeren2002:generalizing" class="csl-entry" role="listitem">
+<span class="smallcaps">Heeren, B., Hage, J., Swierstra, S.D., et al.</span> 2002. <a href="https://www.cs.uu.nl/research/techreps/repo/CS-2002/2002-031.pdf">Generalizing hindley-milner type inference algorithms</a>.
+</div>
+<div id="ref-vytiniotis2010:let-not-generalize" class="csl-entry" role="listitem">
+<span class="smallcaps">Vytiniotis, D., Peyton Jones, S., and Schrijvers, T.</span> 2010. <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tldi10-vytiniotis.pdf">Let should not be generalized</a>. <em>Proceedings of the 5th ACM SIGPLAN workshop on types in language design and implementation</em>, 39–50.
+</div>
+</div>
+
+	</section>
+</div>
+
+</body>
+
+</html>

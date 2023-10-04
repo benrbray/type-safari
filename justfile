@@ -15,6 +15,7 @@ deps-site: build-wasm
 build-site: deps-site
 	cd blog && cabal run site -- clean
 	cd blog && cabal run site -- build
+	mv blog/docs docs
 
 watch-site: deps-site
 	cd blog && rm -rf _site
