@@ -79,24 +79,23 @@ main = do
 
     let ctx = relativizeUrl <> defaultContext
 
+    let prefix = customRoute (("type-safari/" ++) . toFilePath)
+    let makeRoute = route . (prefix `composeRoutes`)
+
     match "images/**" $ do
-        route   idRoute
+        makeRoute idRoute
         compile copyFileCompiler
 
     match "static/**" $ do
-        route   idRoute
-        compile copyFileCompiler
-
-    match "CNAME" $ do
-        route   idRoute
+        makeRoute idRoute
         compile copyFileCompiler
 
     match "css/*" $ do
-        route   idRoute
+        makeRoute idRoute
         compile compressCssCompiler
 
     match "lib/*" $ do
-        route   idRoute
+        makeRoute idRoute
         compile copyFileCompiler
 
     -- bibliography
@@ -105,7 +104,7 @@ main = do
 
     -- static katex assets
     match "katex/**" $ do
-        route idRoute
+        makeRoute idRoute
         compile copyFileCompiler
 
     -- code snippets
@@ -121,7 +120,7 @@ main = do
                    >=> adjustUrls
 
     let postRules = do
-          route $ setExtension "html"
+          makeRoute $ setExtension "html"
           compile $ do
             snippetMap <- toSnippetMap <$> loadAll codeSnippetGlob
             -- check file metadata for bib/csl files
@@ -143,7 +142,7 @@ main = do
     -- static pages
 
     match "index.html" $ do
-        route idRoute
+        makeRoute idRoute
         compile $ do
             posts <- lexical <$> loadAll postGlob
 

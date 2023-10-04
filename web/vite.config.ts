@@ -4,7 +4,7 @@ import {lezer} from "@lezer/generator/rollup"
 
 export default defineConfig({
   plugins: [solid(), lezer()],
-  base: "/lib",
+  base: "/type-safari/lib",
   build: {
     lib: {
       // Could also be a dictionary or array of multiple entry points

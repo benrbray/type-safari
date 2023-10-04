@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<!-- Viewport Meta Tag for Mobile Site -->
+	<!-- https://developer.mozilla.org/en-US/docs/Mozilla/Mobile/Viewport_meta_tag) -->
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>System F / Benjamin R. Bray</title>
+	<link rel="stylesheet" href="../../../type-safari/lib/style.css" />
+	<link rel="stylesheet" href="../../../type-safari/css/style.css" />
+	<link rel="stylesheet" href="../../../type-safari/css/pandoc-syntax.css" />
+	<link rel="stylesheet" href="../../../type-safari/katex/katex.min.css" />
+
+	<script type="module">
+		import * as TypeSafari from '../../../type-safari/lib/type-safari.js'
+		window.TypeSafari = TypeSafari
+
+		
+		// window.onload = function() {
+			TypeSafari.initWorker();
+
+			const snippets = Array.from(document.getElementsByClassName("snippet"));
+			snippets.forEach(elt => {
+				let code = elt.textContent.trim();
+				console.log(code);
+				elt.replaceChildren();
+				TypeSafari.makeTypeInferenceDemo(elt, code);
+			});
+		// }
+	</script>
+</head>
+
+<body>
+	<div class="warning column shadow-box">
+		This article is <b>under construction</b>!  This public draft is likely to have many errors and omissions.
+	</div>
+	<div id="content" class="column shadow-box">
+  <a href="../../../">Home</a>
+	<!-- Post Header -->
+	<header class="article-header">
+		<h1 class="article-title">System F</h1>
+		<div class="article-info">
+			<!-- Date -->
+			<div class="article-date">
+				Posted on 2023-09-27
+			</div>
+		</div>
+	</header>
+
+	<!-- Body -->
+	<section>
+		<div class="toc"><h2>Table of Contents</h2>
+
+</div>
+
+	</section>
+</div>
+
+</body>
+
+</html>

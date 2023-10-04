@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<!-- Viewport Meta Tag for Mobile Site -->
+	<!-- https://developer.mozilla.org/en-US/docs/Mozilla/Mobile/Viewport_meta_tag) -->
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Extending Hindley-Milner with Type Annotations / Benjamin R. Bray</title>
+	<link rel="stylesheet" href="../../../type-safari/lib/style.css" />
+	<link rel="stylesheet" href="../../../type-safari/css/style.css" />
+	<link rel="stylesheet" href="../../../type-safari/css/pandoc-syntax.css" />
+	<link rel="stylesheet" href="../../../type-safari/katex/katex.min.css" />
+
+	<script type="module">
+		import * as TypeSafari from '../../../type-safari/lib/type-safari.js'
+		window.TypeSafari = TypeSafari
+
+		
+		// window.onload = function() {
+			TypeSafari.initWorker();
+
+			const snippets = Array.from(document.getElementsByClassName("snippet"));
+			snippets.forEach(elt => {
+				let code = elt.textContent.trim();
+				console.log(code);
+				elt.replaceChildren();
+				TypeSafari.makeTypeInferenceDemo(elt, code);
+			});
+		// }
+	</script>
+</head>
+
+<body>
+	<div class="warning column shadow-box">
+		This article is <b>under construction</b>!  This public draft is likely to have many errors and omissions.
+	</div>
+	<div id="content" class="column shadow-box">
+  <a href="../../../">Home</a>
+	<!-- Post Header -->
+	<header class="article-header">
+		<h1 class="article-title">Extending Hindley-Milner with Type Annotations</h1>
+		<div class="article-info">
+			<!-- Date -->
+			<div class="article-date">
+				Posted on 2023-09-27
+			</div>
+		</div>
+	</header>
+
+	<!-- Body -->
+	<section>
+		<div class="toc"><h2>Table of Contents</h2>
+<ul>
+<li><a href="#subsumption" id="toc-subsumption">Subsumption</a></li>
+<li><a href="#haskells-simplified-subsumption" id="toc-haskells-simplified-subsumption">Haskell's Simplified Subsumption</a></li>
+</ul>
+</div>
+<h2 id="subsumption">Subsumption</h2>
+<h2 id="haskells-simplified-subsumption">Haskell's Simplified Subsumption</h2>
+<p>See <a href="https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0287-simplify-subsumption.rst">GHC Proposal #287</a> and the accompanying <a href="https://github.com/ghc-proposals/ghc-proposals/pull/287">discussion</a>.</p>
+<p>See also <a href="https://www.reddit.com/r/haskell/comments/ujpzx3/was_simplified_subsumption_worth_it_for_industry/i7mn763/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button">this reddit comment</a> by Alexis King regarding subsumption and let-generalization.</p>
+
+	</section>
+</div>
+
+</body>
+
+</html>
