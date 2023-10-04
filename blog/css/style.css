@@ -1,0 +1,9 @@
+.warning {
+  background-color: rgb(244, 224, 255);
+  border-color: rgb(218, 151, 255);
+  color: rgb(145, 59, 192);
+  --shadow-box-color: rgb(212, 133, 255);
+  padding: 2em;
+  margin-top: 2em;
+  text-align: center;
+}

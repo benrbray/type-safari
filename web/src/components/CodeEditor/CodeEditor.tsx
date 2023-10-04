@@ -3,14 +3,53 @@ import { onMount } from 'solid-js';
 
 // codemirror
 import { langHighlight, exprLangSuport, typeLangSuport, unifLangSuport } from '../../lezer/lang';
-import { EditorView, basicSetup } from "codemirror"
-import {showPanel, Panel} from "@codemirror/view"
-import { EditorState, Extension } from "@codemirror/state"
+// import {showPanel, Panel} from "@codemirror/view"
+import { Extension } from "@codemirror/state"
+import { EditorView } from "@codemirror/view"
 
 // project
 import "./CodeEditor.css"
 import { ErrorInfo, errorPlugin, clearErrors, addError } from '../../editor/ErrorPlugin';
 import { printTree } from '../../lezer/print-lezer-tree';
+
+////////////////////////////////////////////////////////////
+
+import {keymap, highlightSpecialChars, drawSelection, dropCursor, lineNumbers} from "@codemirror/view"
+import {defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, foldKeymap} from "@codemirror/language"
+import {defaultKeymap, history, historyKeymap} from "@codemirror/commands"
+import {searchKeymap} from "@codemirror/search"
+import {autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap} from "@codemirror/autocomplete"
+import {lintKeymap} from "@codemirror/lint"
+
+import { highlightActiveLine } from '../../editor/highlightActiveLine';
+
+const basicSetup: Extension = (() => [
+  lineNumbers(),
+  highlightSpecialChars(),
+  history(),
+  foldGutter(),
+  drawSelection(),
+  dropCursor(),
+  // EditorState.allowMultipleSelections.of(true),
+  indentOnInput(),
+  syntaxHighlighting(defaultHighlightStyle, {fallback: true}),
+  bracketMatching(),
+  closeBrackets(),
+  autocompletion(),
+  // rectangularSelection(),
+  // crosshairCursor(),
+  highlightActiveLine(),
+  // highlightSelectionMatches(),
+  keymap.of([
+    ...closeBracketsKeymap,
+    ...defaultKeymap,
+    ...searchKeymap,
+    ...historyKeymap,
+    ...foldKeymap,
+    ...completionKeymap,
+    ...lintKeymap
+  ])
+])()
 
 ////////////////////////////////////////////////////////////
 
@@ -64,7 +103,7 @@ export const CodeEditor = (props: CodeEditorProps) => {
         basicSetup,
         langSupport,
         langHighlight,
-        selectionPanelPlugin(),
+        // selectionPanelPlugin(),
         errorPlugin(),
         ...(props.extensions || [])
       ],
@@ -108,25 +147,25 @@ export const CodeEditor = (props: CodeEditorProps) => {
 
 ////////////////////////////////////////////////////////////
 
-function dispSelection(state: EditorState): string {
-  const { from, to } = state.selection.main;
-  return `(${from}, ${to})`;
-}
+// function dispSelection(state: EditorState): string {
+//   const { from, to } = state.selection.main;
+//   return `(${from}, ${to})`;
+// }
 
-function selectionPanel(view: EditorView): Panel {
-  let dom = document.createElement("div");
-  dom.textContent = dispSelection(view.state);
+// function selectionPanel(view: EditorView): Panel {
+//   let dom = document.createElement("div");
+//   dom.textContent = dispSelection(view.state);
 
-  return {
-    dom,
-    update(update) {
-      if (update.selectionSet) {
-        dom.textContent = dispSelection(update.state)
-      }
-    }
-  }
-}
+//   return {
+//     dom,
+//     update(update) {
+//       if (update.selectionSet) {
+//         dom.textContent = dispSelection(update.state)
+//       }
+//     }
+//   }
+// }
 
-function selectionPanelPlugin() {
-  return showPanel.of(selectionPanel);
-}
+// function selectionPanelPlugin() {
+//   return showPanel.of(selectionPanel);
+// }

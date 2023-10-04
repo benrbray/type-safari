@@ -1,0 +1,29 @@
+cabal-version:      3.6
+name:               blog
+version:            0.1.0.0
+build-type:         Simple
+
+executable site
+  main-is:          site.hs
+  hs-source-dirs:   src
+  build-depends:    base
+                  , hakyll == 4.16.*
+                  , blaze-html
+                  , process
+                  , pandoc, pandoc-types
+                  , mtl
+                  , text, string-conversions
+                  , data-default
+                  , time, time-locale-compat
+                  , containers
+                  , extra
+                  -- these can be removed along with Biblio.hs
+                  -- once my pull request to Hakyll is merged
+                  , bytestring
+                  , binary
+  other-modules:  KaTeX, Biblio
+  ghc-options:      -threaded
+  default-language: Haskell2010
+  default-extensions:
+    OverloadedStrings
+    ImportQualifiedPost

@@ -16,7 +16,7 @@ export function parseTreePlugin(
   const plugin = ViewPlugin.fromClass(class {
     decorations: DecorationSet;
 
-    constructor(view: EditorView) {
+    constructor(_view: EditorView) {
       this.decorations = Decoration.set([]);
 
       // compute parse info for the first time

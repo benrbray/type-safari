@@ -6,6 +6,7 @@ import "./workerApi";
 import { WasmApi, Ptr, JsonOp } from './WasmApi';
 import { WorkerRequest, WorkerResponse, OpName, WorkerRequestData } from './workerApi';
 import { PickByType } from '../util/types';
+import wasmPath from "/type-safari.wasm?url";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,8 +47,12 @@ const withBytesPtr = (
 
 
 async function main() {
-	const wasmPath = "/type-safari.wasm";
-	const wasm = await initWebAssembly(fetch(wasmPath));
+	// TODO (Ben @ 2023/10/04) this is a hack to get the correct wasm path in the
+	// web worker from the Hakyll static site, but it would be better to find a
+	// way to configure vite to produce the correct path
+	const fixedWasmPath = self.location.origin + wasmPath;
+
+	const wasm = await initWebAssembly(fetch(fixedWasmPath));
 	const haskell = wasm.instance.exports as Haskell;
 
 	console.log(haskell);
@@ -150,7 +155,6 @@ function respond(response: WorkerResponse<OpName>): void {
 	postMessage(response);
 }
 
-function respondSuccess(): void { respond({ tag: "workerSuccess" });        }
 function respondReady(): void   { respond({ tag: "workerReady" });          }
 function respondUnknown(): void { respond({ tag: "workerUnknownRequest" }); }
 function respondFailure(): void { respond({ tag: "workerFailure" });        }

@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "src/site.hs"
+      component: "blog:exe:site"
+
+    - path: "src/KaTeX.hs"
+      component: "blog:exe:site"
+
+    - path: "src/Biblio.hs"
+      component: "blog:exe:site"

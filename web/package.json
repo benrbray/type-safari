@@ -1,8 +1,17 @@
 {
-  "name": "ghc-wasm-test",
+  "name": "type-safari",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "files": ["dist"],
+  "main": "./dist/type-safari.umd.cjs",
+  "module": "./dist/type-safari.js",
+  "exports": {
+    "." : {
+      "import" : "./dist/type-safari.js",
+      "require" : "./dist/type-safari.umd.cjs"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

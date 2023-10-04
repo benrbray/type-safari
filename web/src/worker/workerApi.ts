@@ -5,6 +5,11 @@ export type Tag<T extends string> = { tag: T };
 
 export type KeyOf<T> = T extends T ? keyof T : never;
 
+export type WorkerApi = {
+  [Op in OpName] : (data: WorkerRequestData[Op]) => Promise<WorkerResult<Op>>
+}
+
+
 /* ---- request ----------------------------------------- */
 
 export interface WorkerRequestData {
