@@ -7,3 +7,13 @@
   margin-top: 2em;
   text-align: center;
 }
+
+h2 {
+  font-size: 1.2em;
+}
+
+pre.sourceCode {
+  font-size: 1.04em;
+  padding: 1.0em;
+  background-color: #f6f6f6;
+}
