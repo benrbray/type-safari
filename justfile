@@ -1,5 +1,8 @@
 set shell := ["bash", "-uc"]
 
+source-env:
+	source ~/.ghc-wasm-9.8/env
+
 build-wasm:
 	cd haskell && ./build.sh
 	cp ./haskell/build/type-safari.wasm ./web/public/type-safari.wasm

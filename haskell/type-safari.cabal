@@ -92,6 +92,7 @@ common type-safari
     TypeSafari.Api.InferAbstract
     TypeSafari.Api.Unify
     TypeSafari.Core
+    TypeSafari.Core.Parser
     TypeSafari.FFI.StringWithLen
     TypeSafari.FFI.Util
     TypeSafari.HindleyMilner.Infer
