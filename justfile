@@ -8,10 +8,10 @@ build-wasm:
 	cp ./haskell/build/type-safari.wasm ./web/public/type-safari.wasm
 
 dev: build-wasm
-	cd web && npm run dev
+	cd web && pnpm run dev
 
 deps-site: build-wasm
-	cd web && npm run build
+	cd web && pnpm run build
 	cd blog && rm -rf lib
 	cp -r web/dist blog/lib
 

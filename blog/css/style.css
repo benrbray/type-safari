@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+
 .warning {
   background-color: rgb(244, 224, 255);
   border-color: rgb(218, 151, 255);
@@ -16,4 +18,22 @@ pre.sourceCode {
   font-size: 1.04em;
   padding: 1.0em;
   background-color: #f6f6f6;
+}
+
+p {
+  line-height: 1.4em;
+}
+
+blockquote {
+  margin-left: 0;
+  padding-left: 0.5em;
+  border-left: 1px solid #808080;
+}
+
+blockquote p {
+  color: #808080;
+}
+
+body {
+  font-family: "Lora";
 }

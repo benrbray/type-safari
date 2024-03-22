@@ -3,22 +3,34 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/type-safari.umd.cjs",
   "module": "./dist/type-safari.js",
   "exports": {
-    "." : {
-      "import" : "./dist/type-safari.js",
-      "require" : "./dist/type-safari.umd.cjs"
+    ".": {
+      "import": "./dist/type-safari.js",
+      "require": "./dist/type-safari.umd.cjs"
     }
   },
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@bjorn3/browser_wasi_shim": "^0.2.14",
+    "@codemirror/autocomplete": "^6.13.0",
+    "@codemirror/commands": "^6.3.3",
+    "@codemirror/language": "^6.10.1",
+    "@codemirror/lint": "^6.5.0",
+    "@codemirror/search": "^6.5.6",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.24.1",
+    "@lezer/common": "^1.2.1",
+    "@lezer/highlight": "^1.2.0",
     "@lezer/lr": "^1.3.10",
     "ansi-to-html": "^0.7.2",
     "codemirror": "^6.0.1",
